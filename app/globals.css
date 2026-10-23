@@ -1,26 +1,776 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+
+  /* ==========================================================================
+     ADMIN PANEL DESIGN TOKENS (Single Source of Truth)
+     Change any value here to update the entire admin panel globally.
+     ========================================================================== */
+  --admin-primary: #B4395A;
+  --admin-primary-hover: #9b2f4c;
+  --admin-primary-light: #fdf2f4;
+  --admin-radius: 3px;
+  --admin-border: #cbd5e1;
+  --admin-border-focus: #B4395A;
+  --admin-input-bg: #ffffff;
+  --admin-input-text: #1e293b;
+  --admin-input-placeholder: #94a3b8;
+  --admin-input-height: 36px;
+  --admin-input-font-size: 12px;
+  --admin-disabled-bg: #f8fafc;
+  --admin-disabled-text: #94a3b8;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #B4395A;
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #B4395A;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 3px;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #B4395A;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: #cbd5e1;
+  --sidebar-ring: #B4395A;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --font-sans: 'Poppins', sans-serif;
+  --color-primary: #B4395A;
+  --color-primary-hover: #9b2f4c;
+  --color-primary-light: #f5e0e6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html, body {
+  font-family: 'Poppins', sans-serif !important;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  user-select: none;
+}
+
+/* ==========================================================================
+   ADMIN PANEL COMMON UI CLASSES
+   RULE: Always use these common classes for form controls across the admin panel.
+   Only use Tailwind classes for layout, spacing, or when no common class exists.
+   ========================================================================== */
+
+/* Form Label */
+.admin-label {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
+}
+
+/* Common Input Field (text, email, password, number, search, etc.) */
+.admin-input {
+  display: flex;
+  width: 100%;
+  height: var(--admin-input-height);
+  padding: 6px 12px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 400;
+  color: var(--admin-input-text);
+  background-color: var(--admin-input-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-input::placeholder {
+  color: var(--admin-input-placeholder);
+}
+
+.admin-input:focus {
+  border-color: var(--admin-border-focus);
+  box-shadow: 0 0 0 1px var(--admin-border-focus);
+}
+
+.admin-input:disabled {
+  background-color: var(--admin-disabled-bg);
+  color: var(--admin-disabled-text);
+  cursor: not-allowed;
+}
+
+/* Search Input — has left padding reserved for the icon */
+.admin-search-input {
+  display: flex;
+  width: 100%;
+  height: var(--admin-input-height);
+  padding: 6px 12px 6px 34px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 400;
+  color: var(--admin-input-text);
+  background-color: var(--admin-input-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-search-input::placeholder {
+  color: var(--admin-input-placeholder);
+}
+
+.admin-search-input:focus {
+  border-color: var(--admin-border-focus);
+  box-shadow: 0 0 0 1px var(--admin-border-focus);
+}
+
+/* Common Select Dropdown */
+.admin-select {
+  display: flex;
+  width: 100%;
+  height: var(--admin-input-height);
+  padding: 6px 12px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 400;
+  color: var(--admin-input-text);
+  background-color: var(--admin-input-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-select:focus {
+  border-color: var(--admin-border-focus);
+  box-shadow: 0 0 0 1px var(--admin-border-focus);
+}
+
+.admin-select:disabled {
+  background-color: var(--admin-disabled-bg);
+  color: var(--admin-disabled-text);
+  cursor: not-allowed;
+}
+
+/* Common Textarea */
+.admin-textarea {
+  display: flex;
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 12px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 400;
+  color: var(--admin-input-text);
+  background-color: var(--admin-input-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-textarea::placeholder {
+  color: var(--admin-input-placeholder);
+}
+
+.admin-textarea:focus {
+  border-color: var(--admin-border-focus);
+  box-shadow: 0 0 0 1px var(--admin-border-focus);
+}
+
+.admin-textarea:disabled {
+  background-color: var(--admin-disabled-bg);
+  color: var(--admin-disabled-text);
+  cursor: not-allowed;
+}
+
+/* Common Checkbox */
+.admin-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background-color: var(--admin-input-bg);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  margin: 0;
+  vertical-align: middle;
+  transition: all 0.15s ease;
+}
+
+.admin-checkbox::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  box-shadow: inset 1em 1em #ffffff;
+  transform-origin: center;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.admin-checkbox:checked {
+  background-color: var(--admin-primary);
+  border-color: var(--admin-primary);
+}
+
+.admin-checkbox:checked::before {
+  transform: scale(1);
+}
+
+.admin-checkbox:focus-visible {
+  outline: 2px solid var(--admin-primary);
+  outline-offset: 2px;
+}
+
+.admin-checkbox:disabled {
+  background-color: var(--admin-disabled-bg);
+  border-color: var(--admin-border);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Common Switch / Toggle */
+.admin-switch-track {
+  position: relative;
+  display: inline-flex;
+  height: 20px;
+  width: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 9999px;
+  background-color: #cbd5e1;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.admin-switch-track.active {
+  background-color: var(--admin-primary);
+}
+
+.admin-switch-thumb {
+  pointer-events: none;
+  display: inline-block;
+  height: 16px;
+  width: 16px;
+  margin-top: 2px;
+  margin-left: 2px;
+  border-radius: 9999px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease-in-out;
+}
+
+.admin-switch-track.active .admin-switch-thumb {
+  transform: translateX(16px);
+}
+
+/* Common Admin Buttons */
+.admin-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--admin-input-height);
+  padding: 0 14px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 500;
+  color: #ffffff;
+  background-color: var(--admin-primary);
+  border: 1px solid var(--admin-primary);
+  border-radius: var(--admin-radius);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-btn-primary:hover:not(:disabled) {
+  background-color: var(--admin-primary-hover);
+  border-color: var(--admin-primary-hover);
+}
+
+.admin-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--admin-input-height);
+  padding: 0 14px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 500;
+  color: #334155;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--admin-radius);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-btn-secondary:hover:not(:disabled) {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.admin-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--admin-input-height);
+  padding: 0 14px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 500;
+  color: #334155;
+  background-color: #ffffff;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-btn-outline:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.admin-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--admin-input-height);
+  padding: 0 14px;
+  font-size: var(--admin-input-font-size);
+  font-weight: 500;
+  color: #ffffff;
+  background-color: #dc2626;
+  border: 1px solid #dc2626;
+  border-radius: var(--admin-radius);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-btn-danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* Common Admin Card */
+.admin-card {
+  background-color: #ffffff;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* ==========================================================================
+   SOLID COLOR TOASTER STYLES (Exact pill design: 8px radius, close X, no icon)
+   ========================================================================== */
+.swal2-container.swal2-top-end,
+.swal2-container.swal2-top-right,
+body.swal2-toast-shown .swal2-container,
+.swal2-container:has(.swal2-toast) {
+  top: 16px !important;
+  right: 16px !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 480px !important;
+  pointer-events: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+.swal2-toast {
+  position: relative !important;
+  box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.16) !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 0 12px 0 16px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  width: auto !important;
+  max-width: 440px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  box-sizing: border-box !important;
+}
+
+.swal2-toast .swal2-icon {
+  display: none !important;
+}
+
+.swal2-toast .swal2-title {
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  letter-spacing: -0.01em !important;
+  display: flex !important;
+  align-items: center !important;
+  flex: 1 !important;
+}
+
+.swal2-toast .swal2-html-container {
+  display: none !important;
+}
+
+.swal2-toast .swal2-close {
+  position: static !important;
+  transform: none !important;
+  color: #ffffff !important;
+  opacity: 0.8 !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: opacity 0.15s ease !important;
+  flex-shrink: 0 !important;
+  order: 99 !important;
+}
+
+.swal2-toast .swal2-close:hover {
+  opacity: 1 !important;
+  color: #ffffff !important;
+  background: transparent !important;
+}
+
+.swal2-toast.toast-success {
+  background-color: #047857 !important; /* Rich Emerald Green */
+  color: #ffffff !important;
+}
+
+.swal2-toast.toast-error {
+  background-color: #b91c1c !important; /* Rich Danger Red */
+  color: #ffffff !important;
+}
+
+.swal2-toast.toast-warning {
+  background-color: #b45309 !important; /* Rich Amber */
+  color: #ffffff !important;
+}
+
+.swal2-toast.toast-info {
+  background-color: #1d4ed8 !important; /* Rich Blue */
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   SIMPLE CONFIRMATION MODAL (Border Top Footer, Clean Body, No Bulky Icon)
+   ========================================================================== */
+.swal2-popup.swal2-confirm-modal,
+.swal2-confirm-modal {
+  padding: 0 !important;
+  border-radius: 4px !important;
+  border: 1px solid #e2e8f0 !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08) !important;
+  max-width: 440px !important;
+  width: 92% !important;
+  overflow: hidden !important;
+  text-align: left !important;
+  font-family: inherit !important;
+}
+
+.swal2-confirm-modal .swal2-icon {
+  display: none !important;
+}
+
+.swal2-confirm-modal .swal2-title {
+  padding: 20px 22px 0 22px !important;
+  margin: 0 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-align: left !important;
+  line-height: 1.35 !important;
+}
+
+.swal2-confirm-modal .swal2-html-container {
+  display: block !important;
+  padding: 8px 22px 20px 22px !important;
+  margin: 0 !important;
+  font-size: 13px !important;
+  color: #64748b !important;
+  text-align: left !important;
+  line-height: 1.55 !important;
+}
+
+.swal2-confirm-modal .swal2-actions {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 12px 20px !important;
+  background-color: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  box-sizing: border-box !important;
+}
+
+.swal2-confirm-modal .swal2-confirm {
+  margin: 0 !important;
+  border-radius: 3px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 7px 16px !important;
+  background-color: #B4395A !important;
+  color: #ffffff !important;
+  border: 1px solid #B4395A !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease !important;
+  outline: none !important;
+}
+
+.swal2-confirm-modal .swal2-confirm:hover {
+  background-color: #9b2f4c !important;
+  border-color: #9b2f4c !important;
+}
+
+.swal2-confirm-modal .swal2-cancel {
+  margin: 0 !important;
+  border-radius: 3px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 7px 16px !important;
+  background-color: #ffffff !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  outline: none !important;
+}
+
+.swal2-confirm-modal .swal2-cancel:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* ==========================================================================
+   PERFECT TOP-TO-BOTTOM SLIDE FADE (No wobble/rotate shake)
+   ========================================================================== */
+@keyframes swal2-toast-show {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes swal2-toast-hide {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+@keyframes toastSlideFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastSlideFadeOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+.swal2-toast.swal2-show,
+.swal2-toast.animate-toast-in {
+  animation: toastSlideFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.swal2-toast.swal2-hide,
+.swal2-toast.animate-toast-out {
+  animation: toastSlideFadeOut 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Confirmation modal: pointer-events active on modal container and popup */
+.swal2-container:has(.swal2-confirm-modal),
+.swal2-container:has(.swal2-modal),
+.swal2-container.swal2-center {
+  pointer-events: auto !important;
+  z-index: 99999 !important;
+}
+.swal2-confirm-modal,
+.swal2-confirm-modal * {
+  pointer-events: auto !important;
+}
+
+/* Toaster container: pointer-events: none so it NEVER blocks page clicks */
+.swal2-container.swal2-top-end,
+.swal2-container.swal2-top-right,
+.swal2-container:has(.swal2-toast),
+body.swal2-toast-shown .swal2-container {
+  pointer-events: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+body.swal2-toast-shown {
+  overflow: auto !important;
+}
+
+/* Toast popup pill and close button: allow clicking/closing the toast itself */
+.swal2-toast,
+.swal2-toast * {
+  pointer-events: auto !important;
 }
