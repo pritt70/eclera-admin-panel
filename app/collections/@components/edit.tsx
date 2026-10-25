@@ -29,7 +29,7 @@ export function CollectionEditDialog({
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"active" | "inactive">("active");
-  const [image, setImage] = useState<{ url: string; key: string }>({ url: "", key: "" });
+  const [image, setImage] = useState<any>({ url: "", key: "" });
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
 
@@ -145,7 +145,14 @@ export function CollectionEditDialog({
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         description: description.trim(),
-        image: image?.url ? image : undefined,
+        image:
+          image && (image.url || image.publicUrl)
+            ? {
+                url: image.url || image.publicUrl,
+                publicUrl: image.url || image.publicUrl,
+                key: image.key || "",
+              }
+            : { url: "", publicUrl: "", key: "" },
         categories: selectedCategoryIds,
         category: selectedCategoryIds[0] || null,
         status,

@@ -70,6 +70,12 @@ const SECTIONS: BannerSectionConfig[] = [
     icon: Maximize2,
     description: "Special offer pop-up banners.",
   },
+  {
+    key: "auth_popup",
+    title: "Login / Sign Up Popup Banner",
+    icon: Sparkles,
+    description: "Promotional banner on the left side of the Login / Sign Up modal. Configurable and removable.",
+  },
 ];
 
 export default function BannerManagementPage() {

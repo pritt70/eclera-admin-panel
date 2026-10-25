@@ -30,8 +30,11 @@ export function ImageUploader({
     imagesRef.current = images;
   }, [images]);
 
-  const singleUrl = singleValue?.url;
-  const singleKey = singleValue?.key;
+  const singleUrl =
+    typeof singleValue === "string"
+      ? singleValue
+      : singleValue?.url || singleValue?.publicUrl || "";
+  const singleKey = typeof singleValue === "object" ? singleValue?.key || "" : "";
 
   // Synchronize internal state with props safely without infinite re-render loops
   useEffect(() => {
@@ -62,20 +65,45 @@ export function ImageUploader({
       }
     } else if (Array.isArray(value)) {
       setImages((prev) => {
+        const normalized = value.map((img: any, idx: number) => {
+          const url = typeof img === "string" ? img : img?.url || img?.publicUrl || "";
+          const key = typeof img === "object" ? img?.key || "" : "";
+          const id =
+            (typeof img === "object" ? img?.id || img?._id || img?.key : null) ||
+            `img_${idx}_${url}`;
+          return {
+            id,
+            url,
+            key,
+            fileName:
+              (typeof img === "object" ? img?.fileName : "") ||
+              key?.split("/").pop() ||
+              `image_${idx + 1}.webp`,
+            status: (typeof img === "object" ? img?.status : null) || "uploaded",
+            progress:
+              typeof img === "object" && img?.progress !== undefined
+                ? img.progress
+                : 100,
+            isPrimary:
+              typeof img === "object" && img?.isPrimary !== undefined
+                ? img.isPrimary
+                : idx === 0,
+            previewUrl: (typeof img === "object" ? img?.previewUrl : null) || url,
+          };
+        });
+
         if (
-          prev.length === value.length &&
+          prev.length === normalized.length &&
           prev.every(
             (img, idx) =>
-              img.id === value[idx]?.id &&
-              img.url === value[idx]?.url &&
-              img.status === value[idx]?.status &&
-              img.progress === value[idx]?.progress &&
-              img.isPrimary === value[idx]?.isPrimary
+              img.url === normalized[idx]?.url &&
+              img.key === normalized[idx]?.key &&
+              img.status === normalized[idx]?.status
           )
         ) {
           return prev;
         }
-        return value;
+        return normalized;
       });
     }
   }, [single, singleUrl, singleKey, value]);
@@ -102,9 +130,13 @@ export function ImageUploader({
       if (single && onSingleChange) {
         const primary = newImages[0];
         if (primary && primary.status === "uploaded") {
-          onSingleChange({ url: primary.url, key: primary.key || "" });
+          onSingleChange({
+            url: primary.url,
+            publicUrl: primary.url,
+            key: primary.key || "",
+          });
         } else {
-          onSingleChange({ url: "", key: "" });
+          onSingleChange({ url: "", publicUrl: "", key: "" });
         }
       }
     },
@@ -508,7 +540,7 @@ export function ImageUploader({
 
           <div
             className={`grid gap-3 ${single
-              ? "grid-cols-1"
+              ? "grid-cols-1 max-w-[280px]"
               : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
               }`}
           >
@@ -578,60 +610,82 @@ export function ImageUploader({
                 </div>
 
                 {/* Footer Controls */}
-                <div className="p-1.5 bg-white border-t border-slate-100 flex items-center justify-between gap-1 text-[11px]">
-                  {/* Reorder Left/Right */}
-                  {!single && images.length > 1 && (
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => moveImage(index, "left")}
-                        disabled={index === 0 || disabled}
-                        className="p-1 rounded-[2px] text-slate-400 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                        title="Move Left"
-                      >
-                        ◀
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveImage(index, "right")}
-                        disabled={index === images.length - 1 || disabled}
-                        className="p-1 rounded-[2px] text-slate-400 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
-                        title="Move Right"
-                      >
-                        ▶
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Set as Primary toggle */}
-                  {!single && !img.isPrimary && img.status === "uploaded" && (
+                <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1 text-[11px]">
+                  {single ? (
                     <button
                       type="button"
-                      onClick={() => setPrimary(index)}
+                      onClick={() => handleDelete(index)}
                       disabled={disabled}
-                      className="text-[10px] text-[#B4395A] hover:underline font-semibold cursor-pointer"
+                      className="w-full py-1.5 px-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-[3px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Remove image"
                     >
-                      Make Primary
+                      <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                      Delete Image
                     </button>
-                  )}
+                  ) : (
+                    <>
+                      {/* Reorder Left/Right */}
+                      {images.length > 1 && (
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => moveImage(index, "left")}
+                            disabled={index === 0 || disabled}
+                            className="p-1 rounded-[2px] text-slate-400 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                            title="Move Left"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveImage(index, "right")}
+                            disabled={index === images.length - 1 || disabled}
+                            className="p-1 rounded-[2px] text-slate-400 hover:text-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                            title="Move Right"
+                          >
+                            ▶
+                          </button>
+                        </div>
+                      )}
 
-                  {/* Delete Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(index)}
-                    disabled={disabled}
-                    className="p-1 text-slate-400 hover:text-red-600 rounded-[2px] transition-colors ml-auto cursor-pointer"
-                    title="Delete image"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
+                      {/* Set as Primary toggle */}
+                      {!img.isPrimary && img.status === "uploaded" && (
+                        <button
+                          type="button"
+                          onClick={() => setPrimary(index)}
+                          disabled={disabled}
+                          className="text-[10px] text-[#B4395A] hover:underline font-semibold cursor-pointer"
+                        >
+                          Make Primary
+                        </button>
+                      )}
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(index)}
+                        disabled={disabled}
+                        className="p-1 text-slate-400 hover:text-red-600 rounded-[2px] transition-colors ml-auto cursor-pointer"
+                        title="Delete image"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

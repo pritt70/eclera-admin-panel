@@ -9,12 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api } from "@/helper";
-import { ImageUploader } from "@/components/image-uploader";
 import toast from "@/lib/toast";
 import {
-  CheckCircle2,
-  XCircle,
   Package,
+  Trash2,
+  ImageOff,
 } from "lucide-react";
 
 export function ProductViewDialog({
@@ -29,12 +28,11 @@ export function ProductViewDialog({
   onProductUpdated?: () => void;
 }) {
   const [currentProduct, setCurrentProduct] = useState<any>(product);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [deletingIdx, setDeletingIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setCurrentProduct(product);
-    setActiveImageIndex(0);
 
     if (product?._id && open) {
       setLoadingDetail(true);
@@ -52,7 +50,6 @@ export function ProductViewDialog({
   if (!currentProduct) return null;
 
   const images = Array.isArray(currentProduct.images) ? currentProduct.images : [];
-  const primaryImage = images[activeImageIndex]?.url || images[0]?.url || "";
   const categoryName = currentProduct.category?.name || "Uncategorized";
   const collections = Array.isArray(currentProduct.collections) ? currentProduct.collections : [];
   const specifications = Array.isArray(currentProduct.specifications) ? currentProduct.specifications : [];
@@ -66,21 +63,43 @@ export function ProductViewDialog({
         )
       : 0;
 
-  // Handle image upload / remove directly from View modal
-  const handleImagesChanged = async (newImages: any[]) => {
+  // Handle deleting a single image from view modal (no other image management actions)
+  const handleDeleteImage = async (indexToDelete: number) => {
+    const confirmed = await toast.confirm({
+      title: "Delete Image?",
+      text: "Are you sure you want to remove this photo from the product?",
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!confirmed) return;
+
     try {
-      const cleanImages = (newImages || [])
-        .map((img: any) => ({
-          url: img.url || "",
-          key: img.key || "",
-        }))
-        .filter((img) => Boolean(img.url));
+      setDeletingIdx(indexToDelete);
+
+      const targetImg = images[indexToDelete];
+      const updatedImages = images
+        .filter((_: any, idx: number) => idx !== indexToDelete)
+        .map((img: any) => {
+          const u = img.url || img.publicUrl || (typeof img === "string" ? img : "");
+          return {
+            url: u,
+            publicUrl: u,
+            key: img.key || "",
+          };
+        })
+        .filter((img: any) => Boolean(img.url));
+
+      // If deleted image had a storage key in R2, delete storage object as well
+      if (targetImg?.key) {
+        api("uploads", { key: targetImg.key, force: true }, { method: "DELETE" }).catch(() => {});
+      }
 
       const updateRes = await api(
         "product/update",
         {
           id: currentProduct._id,
-          images: cleanImages,
+          images: updatedImages,
         },
         { method: "POST" }
       );
@@ -88,19 +107,19 @@ export function ProductViewDialog({
       if (updateRes && updateRes.status) {
         setCurrentProduct((prev: any) => ({
           ...prev,
-          images: cleanImages,
+          images: updatedImages,
         }));
         if (onProductUpdated) onProductUpdated();
-        toast.success("Success", "Product images updated successfully");
+        toast.success("Success", "Photo removed successfully");
       } else {
-        toast.error("Error", updateRes?.message || "Failed to update product images.");
+        toast.error("Error", updateRes?.message || "Failed to remove image.");
       }
     } catch (err: any) {
       toast.error("Error", err?.message || "An unexpected error occurred.");
+    } finally {
+      setDeletingIdx(null);
     }
   };
-
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -133,22 +152,82 @@ export function ProductViewDialog({
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-          {/* Section 1: Product Images (Upload, remove & manage directly) */}
-          <div className="space-y-2">
+          {/* Section 1: Uploaded Product Images with Prominent Size and Delete Action Only */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Product Images
+                Product Images ({images.length})
               </h4>
-              <span className="text-[11px] text-slate-400">
-                Add, remove, or change images. First image is the primary thumbnail.
-              </span>
+              {images.length > 0 && (
+                <span className="text-[11px] text-slate-400">
+                  First image is the primary catalog thumbnail. Click the trash icon to delete.
+                </span>
+              )}
             </div>
-            <ImageUploader
-              single={false}
-              value={images}
-              onChange={handleImagesChanged}
-              folder="products"
-            />
+
+            {images.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                {images.map((img: any, idx: number) => {
+                  const imgUrl = img?.url || img?.publicUrl || (typeof img === "string" ? img : "");
+                  const isPrimary = idx === 0;
+                  const isDeleting = deletingIdx === idx;
+
+                  return (
+                    <div
+                      key={img?._id || img?.key || idx}
+                      className={`group relative rounded-[4px] border bg-white shadow-xs overflow-hidden flex flex-col transition-all ${
+                        isPrimary
+                          ? "border-[#B4395A] ring-1 ring-[#B4395A]/30"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      {/* Prominent Large Aspect-Square Image Box */}
+                      <div className="relative aspect-square w-full bg-slate-100 overflow-hidden flex items-center justify-center">
+                        <img
+                          src={imgUrl}
+                          alt={`${currentProduct.name} preview ${idx + 1}`}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105 duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/%3E%3C/svg%3E";
+                          }}
+                        />
+
+                        {/* Primary Badge */}
+                        {isPrimary && (
+                          <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                            <span className="bg-[#B4395A] text-white text-[10px] px-2 py-0.5 uppercase tracking-wider font-bold rounded-[2px] shadow-xs">
+                              Primary
+                            </span>
+                          </div>
+                        )}
+
+                        {/* ONLY Delete Action Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(idx)}
+                          disabled={isDeleting}
+                          className="absolute top-2 right-2 z-10 p-1.5 rounded-[3px] bg-white/95 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200/80 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                          title="Delete image"
+                        >
+                          {isDeleting ? (
+                            <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent animate-spin rounded-full" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 px-4 rounded-[4px] border border-dashed border-slate-200 bg-slate-50 text-center">
+                <ImageOff className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-700">No images uploaded for this product</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Edit this product to upload photos</p>
+              </div>
+            )}
           </div>
 
           {/* Pricing & Inventory Grid */}
@@ -197,71 +276,44 @@ export function ProductViewDialog({
             </div>
           </div>
 
-          {/* Collections & URLs */}
-          {(collections.length > 0 || currentProduct.shortDescription) && (
-            <div className="space-y-3">
-              {collections.length > 0 && (
-                <div>
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                    Assigned Collections
+          {/* Collections */}
+          {collections.length > 0 && (
+            <div>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                Assigned Collections
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {collections.map((col: any) => (
+                  <span
+                    key={col._id || col}
+                    className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-[2px] border border-slate-200 text-[11px]"
+                  >
+                    {col.name || "Collection"}
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {collections.map((col: any) => (
-                      <span
-                        key={col._id || col}
-                        className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-[2px] border border-slate-200 text-[11px]"
-                      >
-                        {col.name || "Collection"}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {currentProduct.shortDescription && (
-                <div className="p-2.5 rounded-[3px] bg-slate-50 border border-slate-200 text-slate-600 italic text-xs">
-                  "{currentProduct.shortDescription}"
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
 
-
-
-          {/* SECTION: Specifications */}
+          {/* Specifications */}
           {specifications.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-slate-200">
+            <div className="space-y-2">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Assigned Specifications
+                Specifications
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {specifications.map((item: any, idx: number) => {
-                  const spec = item.specification || {};
-                  const options = Array.isArray(item.options) ? item.options : [];
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {specifications.map((spec: any, sIdx: number) => {
+                  const specName = spec.specification?.name || "Specification";
+                  const opts = Array.isArray(spec.options)
+                    ? spec.options.map((o: any) => (typeof o === "object" ? o.name || o.value : o)).join(", ")
+                    : "";
 
                   return (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-[3px] border border-slate-200 bg-slate-50/70 text-xs space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-800">{spec.name}</span>
-                        {spec.is_variant && (
-                          <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 text-[9px] font-semibold rounded">
-                            Variant
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {options.map((opt: any, oIdx: number) => (
-                          <span
-                            key={oIdx}
-                            className="px-2 py-0.5 bg-white border border-slate-200 rounded-[2px] text-[11px] text-slate-700"
-                          >
-                            {typeof opt === "object" ? opt.name : opt}
-                          </span>
-                        ))}
-                      </div>
+                    <div key={sIdx} className="p-2.5 rounded-[3px] border border-slate-200 bg-slate-50/50">
+                      <span className="font-bold text-slate-700 block text-[11px] uppercase tracking-wide">
+                        {specName}
+                      </span>
+                      <span className="text-slate-600 text-xs mt-0.5 block">{opts || "None"}</span>
                     </div>
                   );
                 })}
@@ -269,14 +321,13 @@ export function ProductViewDialog({
             </div>
           )}
 
-          {/* SECTION: Related Products */}
+          {/* Related Products */}
           {relatedProducts.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-slate-200">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
                 Related Products ({relatedProducts.length})
               </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {relatedProducts.map((rel: any) => {
                   const thumb = rel.images?.[0]?.url;
 

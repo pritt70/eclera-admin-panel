@@ -36,7 +36,6 @@ export function ProductAddDialog({
   const [slug, setSlug] = useState("");
   const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
@@ -91,7 +90,6 @@ export function ProductAddDialog({
       setSlug("");
       setSku("");
       setBarcode("");
-      setShortDescription("");
       setDescription("");
       setStatus("active");
       setIsSlugManuallyEdited(false);
@@ -220,7 +218,6 @@ export function ProductAddDialog({
         barcode: barcode.trim() || undefined,
         category: selectedCategoryId,
         collections: selectedCollectionIds,
-        shortDescription: shortDescription.trim(),
         description: description.trim(),
         price: numPrice,
         comparePrice: parseFloat(comparePrice) || 0,
@@ -228,10 +225,14 @@ export function ProductAddDialog({
         stock: parseInt(stock, 10) || 0,
         trackStock,
         status,
-        images: images.map((img: any) => ({
-          url: img.url || "",
-          key: img.key || "",
-        })).filter((img) => Boolean(img.url)),
+        images: images.map((img: any) => {
+          const u = img.url || img.publicUrl || (typeof img === "string" ? img : "");
+          return {
+            url: u,
+            publicUrl: u,
+            key: img.key || "",
+          };
+        }).filter((img) => Boolean(img.url)),
         specifications: assignedSpecifications.map((item) => ({
           specification: item.specificationId,
           options: item.selectedOptionIds,
@@ -415,17 +416,6 @@ export function ProductAddDialog({
                     }}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="add-prod-short-desc">Short Summary / Tagline</Label>
-                <Input
-                  id="add-prod-short-desc"
-                  placeholder="e.g. 12-hour hydration velvet finish with rich pigment"
-                  value={shortDescription}
-                  onChange={(e) => setShortDescription(e.target.value)}
-                  disabled={submitting}
-                />
               </div>
 
               <div className="space-y-1.5">

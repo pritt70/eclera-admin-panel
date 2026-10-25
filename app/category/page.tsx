@@ -259,7 +259,7 @@ export default function CategoriesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">Image</TableHead>
+                    <TableHead className="w-20">Image</TableHead>
                     <TableHead>Category Name</TableHead>
                     <TableHead className="text-center">Products</TableHead>
                     <TableHead className="text-center">Status</TableHead>
@@ -267,18 +267,20 @@ export default function CategoriesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {categories.map((item) => (
+                  {categories.map((item) => {
+                    const imgUrl = item.image?.url || item.image?.publicUrl || (typeof item.image === "string" ? item.image : "");
+                    return (
                       <TableRow key={item._id}>
                         {/* Image Thumbnail */}
                         <TableCell>
                           <div
                             onClick={() => setViewingCategory(item)}
-                            className="h-9 w-9 rounded-[2px] border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:border-[#B4395A] transition"
+                            className="h-14 w-14 rounded-[4px] border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:border-[#B4395A] hover:shadow-xs transition"
                             title="Click to view category and manage image"
                           >
-                            {item.image?.url ? (
+                            {imgUrl ? (
                               <img
-                                src={item.image.url}
+                                src={imgUrl}
                                 alt={item.name}
                                 className="h-full w-full object-cover"
                                 onError={(e) => {
@@ -287,7 +289,7 @@ export default function CategoriesPage() {
                                 }}
                               />
                             ) : (
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                              <span className="text-xs font-bold text-slate-400 uppercase">
                                 {item.name.charAt(0)}
                               </span>
                             )}
@@ -387,7 +389,8 @@ export default function CategoriesPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                  ))}
+                    );
+                  })}
 
                 </TableBody>
               </Table>

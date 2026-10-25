@@ -36,13 +36,27 @@ export function CategoryViewDialog({
 
   if (!currentCategory) return null;
 
+  const categoryImgUrl =
+    currentCategory.image?.url ||
+    currentCategory.image?.publicUrl ||
+    (typeof currentCategory.image === "string" ? currentCategory.image : "");
+
   const handleImageChanged = async (newImg: any) => {
     try {
+      const imgPayload =
+        newImg && (newImg.url || newImg.publicUrl)
+          ? {
+              url: newImg.url || newImg.publicUrl,
+              publicUrl: newImg.url || newImg.publicUrl,
+              key: newImg.key || "",
+            }
+          : { url: "", publicUrl: "", key: "" };
+
       const updateRes = await api(
         "category/update",
         {
           id: currentCategory._id,
-          image: newImg ? { url: newImg.url, key: newImg.key } : { url: "", key: "" },
+          image: imgPayload,
         },
         { method: "POST" }
       );
@@ -50,16 +64,26 @@ export function CategoryViewDialog({
       if (updateRes && updateRes.status) {
         setCurrentCategory((prev: any) => ({
           ...prev,
-          image: newImg || { url: "", key: "" },
+          image: imgPayload,
         }));
         if (onCategoryUpdated) onCategoryUpdated();
-        toast.success("Success", newImg ? "Category image updated" : "Category image removed");
+        toast.success("Success", imgPayload.url ? "Category image updated" : "Category image removed");
       } else {
         toast.error("Error", updateRes?.message || "Failed to update category image.");
       }
     } catch (err: any) {
       toast.error("Error", err?.message || "An unexpected error occurred.");
     }
+  };
+
+  const handleDeleteImage = async () => {
+    const confirmed = await toast.confirm({
+      title: "Remove Category Image?",
+      text: "This image will be removed from this category.",
+      confirmButtonText: "Remove",
+    });
+    if (!confirmed) return;
+    await handleImageChanged(null);
   };
 
   return (
@@ -75,16 +99,45 @@ export function CategoryViewDialog({
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {/* Section 1: Category Image */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Category Image
-            </h4>
-            <ImageUploader
-              single={true}
-              singleValue={currentCategory.image}
-              onSingleChange={handleImageChanged}
-              folder="categories"
-            />
+          <div className="rounded-[4px] border border-slate-200/90 bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Category Image
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Uploaded image for this category banner and website badges.
+                </p>
+              </div>
+              {categoryImgUrl ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteImage}
+                  className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 gap-1.5 cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                  Remove Image
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="pt-1">
+              <ImageUploader
+                single={true}
+                singleValue={currentCategory.image}
+                onSingleChange={handleImageChanged}
+                folder="categories"
+              />
+            </div>
           </div>
 
           {/* Section 2: General Category Details */}

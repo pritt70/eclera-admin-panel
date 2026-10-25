@@ -23,6 +23,7 @@ export const SECTION_OPTIONS = [
   { value: "home_middle", label: "Home Middle", shortLabel: "Home Middle" },
   { value: "home_bottom", label: "Home Bottom Showcase", shortLabel: "Bottom Showcase" },
   { value: "promo_popup", label: "Promotional Pop-up", shortLabel: "Pop-up" },
+  { value: "auth_popup", label: "Login / Sign Up Popup", shortLabel: "Login Popup" },
 ];
 
 export function BannerAddDialog({

@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 import { CategorySpecificationPicker } from "./specification-picker";
+import { ImageUploader } from "@/components/image-uploader";
 
 export function CategoryAddDialog({
   open,
@@ -26,6 +27,7 @@ export function CategoryAddDialog({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
+  const [image, setImage] = useState<any>({ url: "", key: "" });
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
@@ -55,6 +57,7 @@ export function CategoryAddDialog({
       setName("");
       setSlug("");
       setDescription("");
+      setImage({ url: "", key: "" });
       setStatus("active");
       setSeoTitle("");
       setSeoDescription("");
@@ -109,6 +112,7 @@ export function CategoryAddDialog({
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         description: description.trim(),
+        image: image && (image.url || image.publicUrl) ? { url: image.url || image.publicUrl, publicUrl: image.url || image.publicUrl, key: image.key || "" } : undefined,
         status,
         seoTitle: seoTitle.trim(),
         seoDescription: seoDescription.trim(),
@@ -201,6 +205,18 @@ export function CategoryAddDialog({
                 placeholder="Brief description of products in this category..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+
+            {/* Category Image */}
+            <div className="space-y-1.5">
+              <Label>Category Image</Label>
+              <ImageUploader
+                single={true}
+                singleValue={image}
+                onSingleChange={(img: any) => setImage(img || { url: "", key: "" })}
+                folder="categories"
                 disabled={submitting}
               />
             </div>
