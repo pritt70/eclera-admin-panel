@@ -388,6 +388,26 @@ export function ProductViewDialog({
               )}
             </div>
           )}
+
+          {/* SECTION: Marketplace Integration */}
+          {currentProduct.flipkartUrl && (
+            <div className="space-y-1.5 pt-2 border-t border-slate-200 text-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Marketplace Integration
+              </span>
+              <p className="text-slate-800 font-medium flex items-center gap-1.5">
+                <strong>Flipkart:</strong>
+                <a
+                  href={currentProduct.flipkartUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline truncate max-w-sm inline-block"
+                >
+                  {currentProduct.flipkartUrl}
+                </a>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

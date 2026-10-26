@@ -70,6 +70,7 @@ export function ProductEditDialog({
   // SEO
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
+  const [flipkartUrl, setFlipkartUrl] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export function ProductEditDialog({
 
       setSeoTitle(product.seoTitle || "");
       setSeoDescription(product.seoDescription || "");
+      setFlipkartUrl(product.flipkartUrl || "");
       setFormError(null);
 
       // Fetch lookups (cached)
@@ -254,6 +256,7 @@ export function ProductEditDialog({
         relatedProducts: selectedRelatedProductIds,
         seoTitle: seoTitle.trim(),
         seoDescription: seoDescription.trim(),
+        flipkartUrl: flipkartUrl.trim(),
       };
 
       const res = await api("product/update", payload, { method: "POST" });
@@ -650,6 +653,29 @@ export function ProductEditDialog({
                   onChange={(e) => setSeoDescription(e.target.value)}
                   disabled={submitting}
                 />
+              </div>
+            </div>
+
+            {/* Marketplace Integration */}
+            <div className="pt-3 border-t border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Marketplace Integration
+                </h4>
+                <span className="text-[11px] text-slate-400 font-normal">Optional</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-prod-flipkart-url">Flipkart Product URL</Label>
+                <Input
+                  id="edit-prod-flipkart-url"
+                  placeholder="e.g. https://www.flipkart.com/..."
+                  value={flipkartUrl}
+                  onChange={(e) => setFlipkartUrl(e.target.value)}
+                  disabled={submitting}
+                />
+                <p className="text-[11px] text-slate-500">
+                  When set, a &quot;Buy on Flipkart&quot; button will automatically appear for this product on the website.
+                </p>
               </div>
             </div>
           </div>
