@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 import { CategorySpecificationPicker } from "./specification-picker";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadSinglePendingImage, deleteRemovedR2Keys } from "@/components/image-uploader";
 
 export function CategoryEditDialog({
   open,
@@ -29,6 +29,7 @@ export function CategoryEditDialog({
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState<any>({ url: "", key: "" });
+  const [removedKeys, setRemovedKeys] = useState<string[]>([]);
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
@@ -58,6 +59,7 @@ export function CategoryEditDialog({
       setSlug(category.slug || "");
       setDescription(category.description || "");
       setImage(category.image || { url: "", key: "" });
+      setRemovedKeys([]);
       setStatus(category.status || "active");
       setSeoTitle(category.seoTitle || "");
       setSeoDescription(category.seoDescription || "");
@@ -148,12 +150,20 @@ export function CategoryEditDialog({
 
     setSubmitting(true);
     try {
+      // 1. Delete removed previous image from R2 if user removed it
+      if (removedKeys.length > 0) {
+        await deleteRemovedR2Keys(removedKeys);
+      }
+
+      // 2. Upload pending image to R2 if a new file was chosen
+      const uploadedImg = await uploadSinglePendingImage(image, "categories");
+
       const payload = {
         id: category._id,
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         description: description.trim(),
-        image: image ? { url: image.url || image.publicUrl || "", publicUrl: image.url || image.publicUrl || "", key: image.key || "" } : { url: "", publicUrl: "", key: "" },
+        image: uploadedImg ? { url: uploadedImg.url || uploadedImg.publicUrl || "", publicUrl: uploadedImg.url || uploadedImg.publicUrl || "", key: uploadedImg.key || "" } : { url: "", publicUrl: "", key: "" },
         status,
         seoTitle: seoTitle.trim(),
         seoDescription: seoDescription.trim(),
@@ -254,6 +264,8 @@ export function CategoryEditDialog({
                 single={true}
                 singleValue={image}
                 onSingleChange={(img: any) => setImage(img || { url: "", key: "" })}
+                removedKeys={removedKeys}
+                onRemovedKeysChange={setRemovedKeys}
                 folder="categories"
                 disabled={submitting}
               />

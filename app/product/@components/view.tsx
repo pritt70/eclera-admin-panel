@@ -325,7 +325,7 @@ export function ProductViewDialog({
           {relatedProducts.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-slate-200">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                Related Products ({relatedProducts.length})
+                You Might Also Like ({relatedProducts.length})
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {relatedProducts.map((rel: any) => {
@@ -364,9 +364,10 @@ export function ProductViewDialog({
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
                 Detailed Description
               </span>
-              <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed bg-slate-50/50 p-3 rounded-[3px] border border-slate-200">
-                {currentProduct.description}
-              </p>
+              <div
+                className="text-xs text-slate-700 leading-relaxed bg-slate-50/50 p-3 rounded-[3px] border border-slate-200 prose prose-sm max-w-none [&>p]:mb-2 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4"
+                dangerouslySetInnerHTML={{ __html: currentProduct.description }}
+              />
             </div>
           )}
 

@@ -14,8 +14,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadSinglePendingImage } from "@/components/image-uploader";
 import { CollectionCategorySpecSelector } from "./collection-spec-selector";
+import { CollectionProductSelector } from "./collection-product-selector";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 
@@ -32,10 +33,11 @@ export function CollectionAddDialog({
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
 
-  // Category and specifications
+  // Category, specifications, and products
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [assignedSpecifications, setAssignedSpecifications] = useState<any[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -64,6 +66,7 @@ export function CollectionAddDialog({
       setSeoDescription("");
       setSelectedCategoryIds([]);
       setAssignedSpecifications([]);
+      setSelectedProducts([]);
       setIsSlugManuallyEdited(false);
       setFormError(null);
 
@@ -106,6 +109,11 @@ export function CollectionAddDialog({
       return;
     }
 
+    if (!selectedProducts || selectedProducts.length === 0) {
+      setFormError("Please select at least one product for this collection.");
+      return;
+    }
+
     const confirmed = await toast.confirm({
       title: "Are you sure to save?",
       confirmButtonText: "Yes",
@@ -115,19 +123,22 @@ export function CollectionAddDialog({
 
     setSubmitting(true);
     try {
+      const uploadedImg = await uploadSinglePendingImage(image, "categories");
+
       const payload = {
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         description: description.trim(),
         image:
-          image && (image.url || image.publicUrl)
+          uploadedImg && (uploadedImg.url || uploadedImg.publicUrl)
             ? {
-                url: image.url || image.publicUrl,
-                publicUrl: image.url || image.publicUrl,
-                key: image.key || "",
+                url: uploadedImg.url || uploadedImg.publicUrl,
+                publicUrl: uploadedImg.url || uploadedImg.publicUrl,
+                key: uploadedImg.key || "",
               }
             : undefined,
         category: selectedCategoryIds[0] || null,
+        categories: selectedCategoryIds,
         status,
         seoTitle: seoTitle.trim(),
         seoDescription: seoDescription.trim(),
@@ -135,6 +146,7 @@ export function CollectionAddDialog({
           specification: item.specificationId || item.specification?._id,
           options: item.selectedOptionIds || [],
         })),
+        products: selectedProducts.map((p: any) => p._id || p.id).filter(Boolean),
       };
 
       const res = await api("collection/create", payload, { method: "POST" });
@@ -270,6 +282,15 @@ export function CollectionAddDialog({
               assignedSpecifications={assignedSpecifications}
               onSpecificationsChange={setAssignedSpecifications}
               loadingCategories={loadingCategories}
+            />
+
+            {/* Product Search & Selection Section */}
+            <CollectionProductSelector
+              categories={categories}
+              selectedCategoryIds={selectedCategoryIds}
+              selectedProducts={selectedProducts}
+              onSelectedProductsChange={setSelectedProducts}
+              disabled={submitting}
             />
 
             {/* SEO Metadata Section */}

@@ -26,7 +26,7 @@ interface HtmlEditorProps {
 export function HtmlEditor({
   value,
   onChange,
-  placeholder = "Write policy content in HTML or rich text...",
+  placeholder = "Write content in HTML or rich text...",
   minHeight = "240px",
 }: HtmlEditorProps) {
   const [mode, setMode] = useState<"visual" | "html" | "preview">("visual");
@@ -225,7 +225,8 @@ export function HtmlEditor({
             contentEditable
             onInput={handleVisualInput}
             onBlur={handleVisualInput}
-            className="p-3.5 text-xs text-slate-800 focus:outline-none min-h-[240px] max-h-[380px] overflow-y-auto leading-relaxed prose prose-sm max-w-none"
+            style={{ minHeight }}
+            className="p-3.5 text-xs text-slate-800 focus:outline-none max-h-[380px] overflow-y-auto leading-relaxed prose prose-sm max-w-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none empty:before:block"
             data-placeholder={placeholder}
           />
         )}
@@ -234,13 +235,14 @@ export function HtmlEditor({
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="<p>Write your raw HTML policy here...</p>"
-            className="w-full h-full min-h-[240px] max-h-[380px] p-3.5 text-xs font-mono text-slate-800 bg-slate-900 text-slate-100 focus:outline-none resize-none leading-relaxed"
+            placeholder={placeholder || "<p>Write your raw HTML here...</p>"}
+            style={{ minHeight }}
+            className="w-full h-full max-h-[380px] p-3.5 text-xs font-mono bg-slate-900 text-slate-100 focus:outline-none resize-none leading-relaxed"
           />
         )}
 
         {mode === "preview" && (
-          <div className="p-4 min-h-[240px] max-h-[380px] overflow-y-auto bg-slate-50/50">
+          <div className="p-4 max-h-[380px] overflow-y-auto bg-slate-50/50" style={{ minHeight }}>
             {value ? (
               <div
                 className="prose prose-sm text-xs max-w-none text-slate-800 leading-relaxed"

@@ -11,8 +11,8 @@ let cachedCollections: any[] | null = null;
 let lookupsPromise: Promise<ProductLookups> | null = null;
 
 export async function getProductLookups(forceRefresh = false): Promise<ProductLookups> {
-  if (!forceRefresh && cachedCategories !== null && cachedCollections !== null) {
-    return { categories: cachedCategories, collections: cachedCollections };
+  if (!forceRefresh && cachedCategories !== null) {
+    return { categories: cachedCategories, collections: [] };
   }
 
   if (lookupsPromise && !forceRefresh) {
@@ -21,29 +21,21 @@ export async function getProductLookups(forceRefresh = false): Promise<ProductLo
 
   lookupsPromise = (async (): Promise<ProductLookups> => {
     try {
-      const [catRes, colRes] = await Promise.all([
-        api("category/list", { status: "active", limit: 200 }),
-        api("collection/list", { status: "active", limit: 200 }),
-      ]);
+      const catRes = await api("category/list", { status: "active", limit: 200 });
 
       const cats: any[] =
         catRes && catRes.status && Array.isArray(catRes.data?.categories)
           ? catRes.data.categories
           : [];
-      const cols: any[] =
-        colRes && colRes.status && Array.isArray(colRes.data?.collections)
-          ? colRes.data.collections
-          : [];
 
       cachedCategories = cats;
-      cachedCollections = cols;
 
-      return { categories: cats, collections: cols };
+      return { categories: cats, collections: [] };
     } catch (e) {
       console.error("Failed to load product lookups:", e);
       return {
         categories: cachedCategories || [],
-        collections: cachedCollections || [],
+        collections: [],
       };
     } finally {
       lookupsPromise = null;

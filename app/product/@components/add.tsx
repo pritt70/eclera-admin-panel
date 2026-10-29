@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { HtmlEditor } from "@/components/ui/html-editor";
 import { Switch } from "@/components/ui/switch";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadPendingImages } from "@/components/image-uploader";
 import { Select } from "@/components/select";
 import { CategorySpecificationPicker } from "@/app/category/@components/specification-picker";
 import { api } from "@/helper";
@@ -40,11 +41,9 @@ export function ProductAddDialog({
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
 
-  // Category & Collections
+  // Category
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
-  const [collections, setCollections] = useState<any[]>([]);
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
   const [loadingLookups, setLoadingLookups] = useState(false);
 
   // Pricing & Inventory
@@ -95,7 +94,6 @@ export function ProductAddDialog({
       setStatus("active");
       setIsSlugManuallyEdited(false);
       setSelectedCategoryId("");
-      setSelectedCollectionIds([]);
       setPrice("0");
       setComparePrice("0");
       setCostPrice("0");
@@ -112,9 +110,8 @@ export function ProductAddDialog({
       setFormError(null);
 
       getProductLookups()
-        .then(({ categories: cats, collections: cols }) => {
+        .then(({ categories: cats }) => {
           setCategories(cats || []);
-          setCollections(cols || []);
         })
         .catch((e) => console.error("Failed to load lookups:", e));
     }
@@ -213,13 +210,14 @@ export function ProductAddDialog({
 
     setSubmitting(true);
     try {
+      const uploadedImages = await uploadPendingImages(images, "products");
+
       const payload: any = {
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         sku: sku.trim() || undefined,
         barcode: barcode.trim() || undefined,
         category: selectedCategoryId,
-        collections: selectedCollectionIds,
         description: description.trim(),
         price: numPrice,
         comparePrice: parseFloat(comparePrice) || 0,
@@ -227,14 +225,7 @@ export function ProductAddDialog({
         stock: parseInt(stock, 10) || 0,
         trackStock,
         status,
-        images: images.map((img: any) => {
-          const u = img.url || img.publicUrl || (typeof img === "string" ? img : "");
-          return {
-            url: u,
-            publicUrl: u,
-            key: img.key || "",
-          };
-        }).filter((img) => Boolean(img.url)),
+        images: uploadedImages,
         specifications: assignedSpecifications.map((item) => ({
           specification: item.specificationId,
           options: item.selectedOptionIds,
@@ -398,38 +389,15 @@ export function ProductAddDialog({
                     className="font-mono text-xs"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="add-prod-collections">Collections (Optional)</Label>
-                  <Select
-                    isMulti={true}
-                    placeholder={loadingLookups ? "Loading collections..." : "Assign to collections..."}
-                    options={collections.map((col) => ({
-                      value: col._id || col.id,
-                      label: col.name,
-                    }))}
-                    value={collections
-                      .filter((col) => selectedCollectionIds.includes(col._id || col.id))
-                      .map((col) => ({ value: col._id || col.id, label: col.name }))}
-                    isLoading={loadingLookups}
-                    isSearchable={true}
-                    isClearable={true}
-                    onChange={(opts: any) => {
-                      setSelectedCollectionIds(Array.isArray(opts) ? opts.map((o) => o.value) : []);
-                    }}
-                  />
-                </div>
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="add-prod-desc">Full Description</Label>
-                <Textarea
-                  id="add-prod-desc"
-                  rows={3}
-                  placeholder="Detailed description, key ingredients, usage instructions..."
+                <HtmlEditor
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={submitting}
+                  onChange={setDescription}
+                  placeholder="Detailed description, key ingredients, usage instructions in HTML or rich text..."
+                  minHeight="200px"
                 />
               </div>
             </div>
@@ -535,7 +503,7 @@ export function ProductAddDialog({
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                    Related Products
+                    You Might Also Like
                   </Label>
                   <p className="text-[11px] text-slate-500">
                     Products recommended alongside this product in the catalog

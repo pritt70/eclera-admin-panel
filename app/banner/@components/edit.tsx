@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadSinglePendingImage, deleteRemovedR2Keys } from "@/components/image-uploader";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 import { AlertCircle } from "lucide-react";
@@ -29,6 +29,7 @@ export function BannerEditDialog({
   onSuccess: () => void;
 }) {
   const [images, setImages] = useState<any[]>([]);
+  const [removedKeys, setRemovedKeys] = useState<string[]>([]);
   const [link, setLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -38,10 +39,11 @@ export function BannerEditDialog({
       setLink(banner.link || "");
       const imgUrl = banner.image?.publicUrl || banner.image?.url;
       if (imgUrl) {
-        setImages([{ ...banner.image, url: imgUrl, publicUrl: imgUrl }]);
+        setImages([{ ...banner.image, url: imgUrl, publicUrl: imgUrl, key: banner.image.key || "", status: "uploaded" }]);
       } else {
         setImages([]);
       }
+      setRemovedKeys([]);
       setFormError(null);
     }
   }, [banner, open]);
@@ -56,18 +58,38 @@ export function BannerEditDialog({
       return;
     }
 
+    const confirmed = await toast.confirm({
+      title: "Update Banner?",
+      confirmButtonText: "Yes, Update",
+      cancelButtonText: "Cancel",
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
+      // 1. Delete removed previous image from R2 if user deleted it
+      if (removedKeys.length > 0) {
+        await deleteRemovedR2Keys(removedKeys);
+      }
+
+      // 2. Upload pending image to R2 if a new file was chosen
+      const uploaded = await uploadSinglePendingImage(primaryImg, "banners");
+      if (!uploaded || !uploaded.url) {
+        setFormError("Failed to upload banner image.");
+        setSubmitting(false);
+        return;
+      }
+
       const payload: any = {
         id: banner._id,
         link: link.trim(),
         image: {
-          url: primaryImg.url,
-          key: primaryImg.key || "",
+          url: uploaded.url,
+          key: uploaded.key || "",
         },
         mobileImage: {
-          url: primaryImg.url,
-          key: primaryImg.key || "",
+          url: uploaded.url,
+          key: uploaded.key || "",
         },
       };
 
@@ -93,7 +115,7 @@ export function BannerEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Header */}
           <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-white pr-14 text-left">
@@ -123,6 +145,8 @@ export function BannerEditDialog({
                 single={true}
                 value={images}
                 onChange={setImages}
+                removedKeys={removedKeys}
+                onRemovedKeysChange={setRemovedKeys}
                 folder="banners"
                 disabled={submitting}
               />

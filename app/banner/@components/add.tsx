@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadSinglePendingImage } from "@/components/image-uploader";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 import { AlertCircle } from "lucide-react";
@@ -20,8 +20,6 @@ import { AlertCircle } from "lucide-react";
 export const SECTION_OPTIONS = [
   { value: "home_hero", label: "Hero Section", shortLabel: "Hero Section" },
   { value: "category_top", label: "Category Page", shortLabel: "Category Page" },
-  { value: "home_middle", label: "Home Middle", shortLabel: "Home Middle" },
-  { value: "home_bottom", label: "Home Bottom Showcase", shortLabel: "Bottom Showcase" },
   { value: "promo_popup", label: "Promotional Pop-up", shortLabel: "Pop-up" },
   { value: "auth_popup", label: "Login / Sign Up Popup", shortLabel: "Login Popup" },
 ];
@@ -63,8 +61,22 @@ export function BannerAddDialog({
       return;
     }
 
+    const confirmed = await toast.confirm({
+      title: "Save New Banner?",
+      confirmButtonText: "Yes, Save",
+      cancelButtonText: "Cancel",
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
+      const uploaded = await uploadSinglePendingImage(primaryImg, "banners");
+      if (!uploaded || !uploaded.url) {
+        setFormError("Failed to upload banner image. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
       const payload: any = {
         title: `${currentSection.shortLabel} Banner`,
         position: initialPosition || "home_hero",
@@ -73,12 +85,12 @@ export function BannerAddDialog({
         status: "active",
         sortOrder: 0,
         image: {
-          url: primaryImg.url,
-          key: primaryImg.key || "",
+          url: uploaded.url,
+          key: uploaded.key || "",
         },
         mobileImage: {
-          url: primaryImg.url,
-          key: primaryImg.key || "",
+          url: uploaded.url,
+          key: uploaded.key || "",
         },
       };
 
@@ -104,7 +116,7 @@ export function BannerAddDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Header */}
           <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-white pr-14 text-left">

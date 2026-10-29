@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { HtmlEditor } from "@/components/ui/html-editor";
 import { Switch } from "@/components/ui/switch";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadPendingImages, deleteRemovedR2Keys } from "@/components/image-uploader";
 import { Select } from "@/components/select";
 import { CategorySpecificationPicker } from "@/app/category/@components/specification-picker";
 import { api } from "@/helper";
@@ -41,11 +42,9 @@ export function ProductEditDialog({
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"active" | "inactive">("active");
 
-  // Category & Collections
+  // Category
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
-  const [collections, setCollections] = useState<any[]>([]);
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
   const [loadingLookups, setLoadingLookups] = useState(false);
 
   // Pricing & Inventory
@@ -57,6 +56,7 @@ export function ProductEditDialog({
 
   // Images
   const [images, setImages] = useState<any[]>([]);
+  const [removedKeys, setRemovedKeys] = useState<string[]>([]);
 
   // Category Specifications
   const [availableSpecifications, setAvailableSpecifications] = useState<any[]>([]);
@@ -98,11 +98,6 @@ export function ProductEditDialog({
       const catId = product.category?._id || product.category || "";
       setSelectedCategoryId(catId);
 
-      const colIds = Array.isArray(product.collections)
-        ? product.collections.map((c: any) => (typeof c === "object" ? c._id : c)).filter(Boolean)
-        : [];
-      setSelectedCollectionIds(colIds);
-
       setPrice(product.price !== undefined ? product.price.toString() : "0");
       setComparePrice(product.comparePrice !== undefined ? product.comparePrice.toString() : "0");
       setCostPrice(product.costPrice !== undefined ? product.costPrice.toString() : "0");
@@ -110,6 +105,7 @@ export function ProductEditDialog({
       setTrackStock(product.trackStock !== undefined ? Boolean(product.trackStock) : true);
 
       setImages(Array.isArray(product.images) ? product.images : []);
+      setRemovedKeys([]);
 
       const relIds = Array.isArray(product.relatedProducts)
         ? product.relatedProducts.map((p: any) => (typeof p === "object" ? p._id : p)).filter(Boolean)
@@ -123,9 +119,8 @@ export function ProductEditDialog({
 
       // Fetch lookups (cached)
       getProductLookups()
-        .then(({ categories: cats, collections: cols }) => {
+        .then(({ categories: cats }) => {
           setCategories(cats || []);
-          setCollections(cols || []);
         })
         .catch((e) => console.error("Failed to load lookups:", e));
 
@@ -226,6 +221,14 @@ export function ProductEditDialog({
 
     setSubmitting(true);
     try {
+      // 1. Delete removed previous images from R2 if user deleted them
+      if (removedKeys.length > 0) {
+        await deleteRemovedR2Keys(removedKeys);
+      }
+
+      // 2. Upload pending new images to R2
+      const finalImages = await uploadPendingImages(images, "products");
+
       const payload: any = {
         id: product._id,
         name: name.trim(),
@@ -233,7 +236,6 @@ export function ProductEditDialog({
         sku: sku.trim() || undefined,
         barcode: barcode.trim() || undefined,
         category: selectedCategoryId,
-        collections: selectedCollectionIds,
         description: description.trim(),
         price: numPrice,
         comparePrice: parseFloat(comparePrice) || 0,
@@ -241,14 +243,7 @@ export function ProductEditDialog({
         stock: parseInt(stock, 10) || 0,
         trackStock,
         status,
-        images: images.map((img: any) => {
-          const u = img.url || img.publicUrl || (typeof img === "string" ? img : "");
-          return {
-            url: u,
-            publicUrl: u,
-            key: img.key || "",
-          };
-        }).filter((img) => Boolean(img.url)),
+        images: finalImages,
         specifications: assignedSpecifications.map((item) => ({
           specification: item.specificationId,
           options: item.selectedOptionIds,
@@ -316,6 +311,8 @@ export function ProductEditDialog({
                 single={false}
                 value={images}
                 onChange={setImages}
+                removedKeys={removedKeys}
+                onRemovedKeysChange={setRemovedKeys}
                 folder="products"
                 disabled={submitting}
               />
@@ -404,37 +401,15 @@ export function ProductEditDialog({
                     className="font-mono text-xs"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-prod-collections">Collections (Optional)</Label>
-                  <Select
-                    isMulti={true}
-                    placeholder={loadingLookups ? "Loading collections..." : "Assign to collections..."}
-                    options={collections.map((col) => ({
-                      value: col._id || col.id,
-                      label: col.name,
-                    }))}
-                    value={collections
-                      .filter((col) => selectedCollectionIds.includes(col._id || col.id))
-                      .map((col) => ({ value: col._id || col.id, label: col.name }))}
-                    isLoading={loadingLookups}
-                    isSearchable={true}
-                    isClearable={true}
-                    onChange={(opts: any) => {
-                      setSelectedCollectionIds(Array.isArray(opts) ? opts.map((o) => o.value) : []);
-                    }}
-                  />
-                </div>
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="edit-prod-desc">Full Description</Label>
-                <Textarea
-                  id="edit-prod-desc"
-                  rows={3}
+                <HtmlEditor
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={submitting}
+                  onChange={setDescription}
+                  placeholder="Detailed description, key ingredients, usage instructions in HTML or rich text..."
+                  minHeight="200px"
                 />
               </div>
             </div>
@@ -536,7 +511,7 @@ export function ProductEditDialog({
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                    Related Products
+                    You Might Also Like
                   </Label>
                   <p className="text-[11px] text-slate-500">
                     Products recommended alongside this product in the catalog

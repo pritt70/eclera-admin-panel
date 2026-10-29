@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 import { CategorySpecificationPicker } from "./specification-picker";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadSinglePendingImage } from "@/components/image-uploader";
 
 export function CategoryAddDialog({
   open,
@@ -108,11 +108,13 @@ export function CategoryAddDialog({
 
     setSubmitting(true);
     try {
+      const uploadedImg = await uploadSinglePendingImage(image, "categories");
+
       const payload = {
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         description: description.trim(),
-        image: image && (image.url || image.publicUrl) ? { url: image.url || image.publicUrl, publicUrl: image.url || image.publicUrl, key: image.key || "" } : undefined,
+        image: uploadedImg ? { url: uploadedImg.url, publicUrl: uploadedImg.url, key: uploadedImg.key || "" } : undefined,
         status,
         seoTitle: seoTitle.trim(),
         seoDescription: seoDescription.trim(),

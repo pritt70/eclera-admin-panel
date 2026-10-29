@@ -79,10 +79,15 @@ export function CategoryViewDialog({
   const handleDeleteImage = async () => {
     const confirmed = await toast.confirm({
       title: "Remove Category Image?",
-      text: "This image will be removed from this category.",
+      text: "This image will be permanently removed from this category.",
       confirmButtonText: "Remove",
     });
     if (!confirmed) return;
+
+    if (currentCategory.image?.key) {
+      api("uploads", { key: currentCategory.image.key, force: true }, { method: "DELETE" }).catch(() => {});
+    }
+
     await handleImageChanged(null);
   };
 
@@ -92,7 +97,7 @@ export function CategoryViewDialog({
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-white pr-14 text-left">
           <DialogTitle className="text-base font-bold text-slate-900">
-            Category
+            Category: {currentCategory.name}
           </DialogTitle>
         </DialogHeader>
 
@@ -131,12 +136,19 @@ export function CategoryViewDialog({
             </div>
 
             <div className="pt-1">
-              <ImageUploader
-                single={true}
-                singleValue={currentCategory.image}
-                onSingleChange={handleImageChanged}
-                folder="categories"
-              />
+              {categoryImgUrl ? (
+                <div className="relative max-w-[200px] aspect-square rounded-[3px] border border-slate-200 bg-slate-100 overflow-hidden shadow-xs">
+                  <img
+                    src={categoryImgUrl}
+                    alt={currentCategory.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="rounded-[3px] border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                  No image uploaded for this category. Click Edit Category to add an image.
+                </div>
+              )}
             </div>
           </div>
 

@@ -27,8 +27,6 @@ import {
   Image as ImageIcon,
   Sparkles,
   FolderTree,
-  Layers,
-  LayoutGrid,
   Maximize2,
 } from "lucide-react";
 
@@ -51,18 +49,6 @@ const SECTIONS: BannerSectionConfig[] = [
     title: "Category Page Banners",
     icon: FolderTree,
     description: "Top header banners on category catalog pages.",
-  },
-  {
-    key: "home_middle",
-    title: "Home Middle Banners",
-    icon: Layers,
-    description: "Mid-page promotional showcase banners.",
-  },
-  {
-    key: "home_bottom",
-    title: "Home Bottom Showcase Banners",
-    icon: LayoutGrid,
-    description: "Pre-footer visual banners on homepage.",
   },
   {
     key: "promo_popup",

@@ -160,10 +160,15 @@ export function CollectionViewDialog({
   const handleDeleteImage = async () => {
     const confirmed = await toast.confirm({
       title: "Remove Collection Image?",
-      text: "This image will be removed from this collection.",
+      text: "This image will be permanently removed from this collection.",
       confirmButtonText: "Remove",
     });
     if (!confirmed) return;
+
+    if (currentCollection.image?.key) {
+      api("uploads", { key: currentCollection.image.key, force: true }, { method: "DELETE" }).catch(() => {});
+    }
+
     await handleImageChanged(null);
   };
 
@@ -173,7 +178,7 @@ export function CollectionViewDialog({
         {/* Header: ONLY Collections title */}
         <DialogHeader className="px-6 py-4 border-b border-slate-200 shrink-0">
           <DialogTitle className="text-base font-bold text-slate-900">
-            Collections
+            Collection: {currentCollection.name}
           </DialogTitle>
         </DialogHeader>
 
@@ -211,12 +216,19 @@ export function CollectionViewDialog({
             </div>
 
             <div className="pt-1">
-              <ImageUploader
-                single={true}
-                singleValue={currentCollection.image}
-                onSingleChange={handleImageChanged}
-                folder="categories"
-              />
+              {collectionImgUrl ? (
+                <div className="relative max-w-[280px] aspect-video rounded-[3px] border border-slate-200 bg-slate-100 overflow-hidden shadow-xs">
+                  <img
+                    src={collectionImgUrl}
+                    alt={currentCollection.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="rounded-[3px] border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                  No image uploaded for this collection. Click Edit Collection to add an image.
+                </div>
+              )}
             </div>
           </div>
 
@@ -445,6 +457,66 @@ export function CollectionViewDialog({
                     );
                   })()}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3.5. Assigned Products Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Assigned Products
+              </h4>
+              <span className="text-xs text-slate-500 font-medium">
+                {Array.isArray(currentCollection.products) ? currentCollection.products.length : 0} products
+              </span>
+            </div>
+
+            {Array.isArray(currentCollection.products) && currentCollection.products.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                {currentCollection.products.map((prod: any) => {
+                  const pImg =
+                    Array.isArray(prod.images) && prod.images.length > 0
+                      ? prod.images[0]?.url || prod.images[0]?.publicUrl || prod.images[0]
+                      : null;
+
+                  return (
+                    <div
+                      key={prod._id || prod.id}
+                      className="flex items-center gap-2.5 p-2 rounded-[4px] border border-slate-200 bg-slate-50/70"
+                    >
+                      <div className="w-8 h-8 rounded-[3px] border border-slate-200 bg-white overflow-hidden shrink-0 flex items-center justify-center">
+                        {pImg ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={pImg}
+                            alt={prod.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[10px] text-slate-400">IMG</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 text-xs">
+                        <p className="font-semibold text-slate-900 truncate" title={prod.name}>
+                          {prod.name}
+                        </p>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          {prod.sku && <span className="font-mono">{prod.sku}</span>}
+                          {prod.price !== undefined && (
+                            <span className="font-medium text-slate-700">
+                              ₹{Number(prod.price).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-[4px] border border-slate-200 bg-slate-50/50 text-center text-xs text-slate-400">
+                No products currently assigned to this collection.
               </div>
             )}
           </div>

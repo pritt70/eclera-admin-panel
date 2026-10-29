@@ -14,8 +14,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageUploader, uploadSinglePendingImage, deleteRemovedR2Keys } from "@/components/image-uploader";
 import { CollectionCategorySpecSelector } from "./collection-spec-selector";
+import { CollectionProductSelector } from "./collection-product-selector";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
 
@@ -30,13 +31,15 @@ export function CollectionEditDialog({
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [image, setImage] = useState<any>({ url: "", key: "" });
+  const [removedKeys, setRemovedKeys] = useState<string[]>([]);
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
 
-  // Category and specifications
+  // Category, specifications, and products
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [assignedSpecifications, setAssignedSpecifications] = useState<any[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
   const [existingColSpecs, setExistingColSpecs] = useState<any[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -63,6 +66,7 @@ export function CollectionEditDialog({
       setDescription(collection.description || "");
       setStatus(collection.status === "inactive" ? "inactive" : "active");
       setImage(collection.image || { url: "", key: "" });
+      setRemovedKeys([]);
       setSeoTitle(collection.seoTitle || "");
       setSeoDescription(collection.seoDescription || "");
 
@@ -78,6 +82,7 @@ export function CollectionEditDialog({
 
       setSelectedCategoryIds(initialCatIds);
       setExistingColSpecs(collection.specifications || []);
+      setSelectedProducts(Array.isArray(collection.products) ? collection.products : []);
 
       const fetchDetailAndCategories = async () => {
         setLoadingCategories(true);
@@ -105,6 +110,13 @@ export function CollectionEditDialog({
 
           setSelectedCategoryIds(freshCatIds.length > 0 ? freshCatIds : initialCatIds);
           setExistingColSpecs(fullCollection.specifications || collection.specifications || []);
+          setSelectedProducts(
+            Array.isArray(fullCollection.products)
+              ? fullCollection.products
+              : Array.isArray(collection.products)
+              ? collection.products
+              : []
+          );
         } catch (e) {
           console.error("Failed to load collection details:", e);
         } finally {
@@ -131,6 +143,11 @@ export function CollectionEditDialog({
       return;
     }
 
+    if (!selectedProducts || selectedProducts.length === 0) {
+      setFormError("Please select at least one product for this collection.");
+      return;
+    }
+
     const confirmed = await toast.confirm({
       title: "Are you sure to update?",
       confirmButtonText: "Yes",
@@ -140,17 +157,25 @@ export function CollectionEditDialog({
 
     setSubmitting(true);
     try {
+      // 1. Delete removed previous image from R2 if user removed it
+      if (removedKeys.length > 0) {
+        await deleteRemovedR2Keys(removedKeys);
+      }
+
+      // 2. Upload pending image to R2 if a new file was chosen
+      const uploadedImg = await uploadSinglePendingImage(image, "categories");
+
       const payload = {
         id: collection._id,
         name: name.trim(),
         slug: slug.trim() ? slugify(slug) : undefined,
         description: description.trim(),
         image:
-          image && (image.url || image.publicUrl)
+          uploadedImg && (uploadedImg.url || uploadedImg.publicUrl)
             ? {
-                url: image.url || image.publicUrl,
-                publicUrl: image.url || image.publicUrl,
-                key: image.key || "",
+                url: uploadedImg.url || uploadedImg.publicUrl,
+                publicUrl: uploadedImg.url || uploadedImg.publicUrl,
+                key: uploadedImg.key || "",
               }
             : { url: "", publicUrl: "", key: "" },
         categories: selectedCategoryIds,
@@ -162,6 +187,7 @@ export function CollectionEditDialog({
           specification: item.specificationId || item.specification?._id,
           options: item.selectedOptionIds || [],
         })),
+        products: selectedProducts.map((p: any) => p._id || p.id).filter(Boolean),
       };
 
       const res = await api("collection/update", payload, { method: "POST" });
@@ -281,6 +307,8 @@ export function CollectionEditDialog({
                 single={true}
                 singleValue={image}
                 onSingleChange={(img: any) => setImage(img || { url: "", key: "" })}
+                removedKeys={removedKeys}
+                onRemovedKeysChange={setRemovedKeys}
                 folder="categories"
                 disabled={submitting}
               />
@@ -295,6 +323,15 @@ export function CollectionEditDialog({
               onSpecificationsChange={setAssignedSpecifications}
               loadingCategories={loadingCategories || loadingDetails}
               existingCollectionSpecs={existingColSpecs}
+            />
+
+            {/* Product Search & Selection Section */}
+            <CollectionProductSelector
+              categories={categories}
+              selectedCategoryIds={selectedCategoryIds}
+              selectedProducts={selectedProducts}
+              onSelectedProductsChange={setSelectedProducts}
+              disabled={submitting}
             />
 
             {/* SEO Metadata Section */}

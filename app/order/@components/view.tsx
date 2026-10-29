@@ -311,7 +311,9 @@ export function OrderViewDialog({
               <div className="flex justify-between">
                 <span className="text-slate-500">Method:</span>
                 <span className="font-semibold uppercase text-slate-900">
-                  {order.paymentMethod === "prepaid"
+                  {order.paymentMethod === "upi_qr" || order.paymentMethod === "qr"
+                    ? "UPI QR Code"
+                    : order.paymentMethod === "prepaid"
                     ? "Prepaid"
                     : order.paymentMethod === "advance"
                     ? "Advance Payment"
@@ -322,6 +324,36 @@ export function OrderViewDialog({
                 <span className="text-slate-500">Status:</span>
                 <span>{getPaymentStatusBadge(currentPaymentStatus)}</span>
               </div>
+              {order.paymentScreenshot ? (
+                <div className="pt-2.5 mt-2 border-t border-slate-100 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 font-semibold text-[11px] uppercase tracking-wide">
+                      Payment Proof Screenshot:
+                    </span>
+                    <a
+                      href={order.paymentScreenshot}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-semibold text-[#B4395A] hover:underline"
+                    >
+                      View Full Image ↗
+                    </a>
+                  </div>
+                  {order.utrNumber && (
+                    <div className="text-[11px] text-slate-700 bg-slate-50 p-1 rounded font-mono">
+                      UTR / Txn ID: <strong>{order.utrNumber}</strong>
+                    </div>
+                  )}
+                  <div className="relative border border-slate-200 rounded-[2px] bg-slate-50 overflow-hidden group">
+                    <img
+                      src={order.paymentScreenshot}
+                      alt="Payment Proof Screenshot"
+                      className="w-full max-h-56 object-contain cursor-pointer hover:opacity-95"
+                      onClick={() => window.open(order.paymentScreenshot, "_blank")}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="border border-slate-200 rounded-[2px] p-4 bg-white text-xs space-y-2">

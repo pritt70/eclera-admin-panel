@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/helper";
 import toast from "@/lib/toast";
+import { COUNTRIES, getStatesForCountry } from "@/lib/countries";
 
 interface CustomerEditDialogProps {
   open: boolean;
@@ -295,6 +296,55 @@ export function CustomerEditDialog({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-700">Country</Label>
+                  <select
+                    value={country}
+                    onChange={(e) => {
+                      const newCountry = e.target.value;
+                      setCountry(newCountry);
+                      const states = getStatesForCountry(newCountry);
+                      if (states.length > 0) {
+                        setState(states[0]);
+                      } else {
+                        setState("");
+                      }
+                    }}
+                    className="w-full h-9 px-2 text-xs border border-slate-300 rounded-[2px] bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#B4395A]"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-700">State / Province</Label>
+                  {getStatesForCountry(country).length > 0 ? (
+                    <select
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      className="w-full h-9 px-2 text-xs border border-slate-300 rounded-[2px] bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#B4395A]"
+                    >
+                      <option value="">Select State</option>
+                      {getStatesForCountry(country).map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder="Gujarat"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">City</Label>
                   <Input
                     placeholder="Surat"
@@ -303,30 +353,13 @@ export function CustomerEditDialog({
                     className="h-9 text-xs"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">State</Label>
-                  <Input
-                    placeholder="Gujarat"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
+
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-slate-700">Postal Code</Label>
                   <Input
                     placeholder="395007"
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-slate-700">Country</Label>
-                  <Input
-                    placeholder="India"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
                     className="h-9 text-xs"
                   />
                 </div>

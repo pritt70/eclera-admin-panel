@@ -9,104 +9,247 @@ import toast from "@/lib/toast";
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+export interface ImageItem {
+  id: string;
+  url: string;
+  previewUrl?: string;
+  key?: string;
+  fileName?: string;
+  status: "pending" | "uploading" | "uploaded" | "error";
+  progress?: number;
+  localFile?: File;
+  isPrimary?: boolean;
+  error?: string;
+}
+
+export interface ImageUploaderProps {
+  value?: any[];
+  onChange?: (images: any[]) => void;
+  singleValue?: any;
+  onSingleChange?: (image: any) => void;
+  removedKeys?: string[];
+  onRemovedKeysChange?: (keys: string[]) => void;
+  single?: boolean;
+  folder?: string;
+  maxFiles?: number;
+  disabled?: boolean;
+}
+
+/**
+ * Direct single file binary upload to Cloudflare R2 via backend streaming
+ */
+export async function directUploadFileToR2(
+  file: File,
+  folder: string = "products"
+): Promise<{ key: string; publicUrl: string }> {
+  const token =
+    getCookie("admin_token") ||
+    (typeof window !== "undefined" ? localStorage.getItem("admin_token") : null);
+
+  const uploadEndpoint = `${BASE_API_URL}/uploads/direct?folder=${encodeURIComponent(
+    folder
+  )}&fileName=${encodeURIComponent(file.name)}`;
+
+  const res = await fetch(uploadEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
+    },
+    body: file,
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.status || !data.data) {
+    throw new Error(data.message || `Upload failed with status ${res.status}`);
+  }
+
+  return {
+    key: data.data.key,
+    publicUrl: data.data.publicUrl,
+  };
+}
+
+/**
+ * Uploads all pending images in an array to Cloudflare R2 on save/confirm.
+ * Leaves already uploaded images untouched.
+ * Preserves order and primary flag.
+ */
+export async function uploadPendingImages(
+  images: any[],
+  folder: string = "products"
+): Promise<Array<{ url: string; publicUrl: string; key: string; isPrimary?: boolean; fileName?: string }>> {
+  if (!Array.isArray(images) || images.length === 0) return [];
+
+  const results: Array<{ url: string; publicUrl: string; key: string; isPrimary?: boolean; fileName?: string }> = [];
+
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    const isPrimary = img.isPrimary !== undefined ? Boolean(img.isPrimary) : i === 0;
+
+    if (img.localFile instanceof File) {
+      // Pending local file to be uploaded to R2
+      const uploaded = await directUploadFileToR2(img.localFile, folder);
+      results.push({
+        url: uploaded.publicUrl,
+        publicUrl: uploaded.publicUrl,
+        key: uploaded.key,
+        isPrimary,
+        fileName: img.fileName || img.localFile.name,
+      });
+    } else if (img.url || img.publicUrl) {
+      // Existing already uploaded image
+      const u = img.publicUrl || img.url;
+      results.push({
+        url: u,
+        publicUrl: u,
+        key: img.key || "",
+        isPrimary,
+        fileName: img.fileName,
+      });
+    }
+  }
+
+  // Ensure exactly one primary if images exist
+  if (results.length > 0 && !results.some((r) => r.isPrimary)) {
+    results[0].isPrimary = true;
+  }
+
+  return results;
+}
+
+/**
+ * Uploads a single pending image to R2 on save/confirm if a local file was picked.
+ * If already uploaded or empty, returns existing or null.
+ */
+export async function uploadSinglePendingImage(
+  image: any,
+  folder: string = "categories"
+): Promise<{ url: string; publicUrl: string; key: string } | null> {
+  if (!image) return null;
+
+  if (image.localFile instanceof File) {
+    const uploaded = await directUploadFileToR2(image.localFile, folder);
+    return {
+      url: uploaded.publicUrl,
+      publicUrl: uploaded.publicUrl,
+      key: uploaded.key,
+    };
+  }
+
+  const u = image.publicUrl || image.url;
+  if (u) {
+    return {
+      url: u,
+      publicUrl: u,
+      key: image.key || "",
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Permanently deletes removed images from Cloudflare R2.
+ * Triggered strictly when user confirms Save/Update.
+ */
+export async function deleteRemovedR2Keys(keys: string[]): Promise<void> {
+  if (!Array.isArray(keys) || keys.length === 0) return;
+  const uniqueKeys = Array.from(new Set(keys.filter((k) => typeof k === "string" && k.trim().length > 0)));
+
+  await Promise.allSettled(
+    uniqueKeys.map((key) =>
+      api("uploads", { key, force: true }, { method: "DELETE" }).catch((err) => {
+        console.warn(`Failed to delete R2 object key: ${key}`, err);
+      })
+    )
+  );
+}
+
 export function ImageUploader({
   value,
   onChange,
   singleValue,
   onSingleChange,
+  removedKeys = [],
+  onRemovedKeysChange,
   single = false,
   folder = "products",
   maxFiles = 10,
   disabled = false,
-}: any) {
-  const [images, setImages] = useState<any[]>([]);
+}: ImageUploaderProps) {
+  const [images, setImages] = useState<ImageItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [manualUrl, setManualUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const activeXhrs = useRef<Map<string, XMLHttpRequest>>(new Map());
   const imagesRef = useRef(images);
 
   useEffect(() => {
     imagesRef.current = images;
   }, [images]);
 
-  const singleUrl =
-    typeof singleValue === "string"
-      ? singleValue
-      : singleValue?.url || singleValue?.publicUrl || "";
-  const singleKey = typeof singleValue === "object" ? singleValue?.key || "" : "";
-
-  // Synchronize internal state with props safely without infinite re-render loops
+  // Synchronize internal state with props safely
   useEffect(() => {
-    if (single) {
-      if (singleUrl) {
-        setImages((prev) => {
-          if (
-            prev.length === 1 &&
-            prev[0].url === singleUrl &&
-            prev[0].key === (singleKey || "")
-          ) {
-            return prev;
-          }
-          return [
-            {
-              id: singleKey || "single_img_1",
-              key: singleKey || "",
-              url: singleUrl,
-              fileName: singleKey?.split("/").pop() || "image.webp",
-              status: "uploaded",
-              progress: 100,
-              isPrimary: true,
-            },
-          ];
-        });
-      } else {
-        setImages((prev) => (prev.length === 0 ? prev : []));
+    let rawItems: any[] = [];
+    if (singleValue !== undefined && singleValue !== null) {
+      if (typeof singleValue === "string" && singleValue.trim()) {
+        rawItems = [{ url: singleValue, key: "" }];
+      } else if (typeof singleValue === "object" && (singleValue.url || singleValue.publicUrl || singleValue.localFile)) {
+        rawItems = [singleValue];
       }
     } else if (Array.isArray(value)) {
-      setImages((prev) => {
-        const normalized = value.map((img: any, idx: number) => {
-          const url = typeof img === "string" ? img : img?.url || img?.publicUrl || "";
-          const key = typeof img === "object" ? img?.key || "" : "";
-          const id =
-            (typeof img === "object" ? img?.id || img?._id || img?.key : null) ||
-            `img_${idx}_${url}`;
-          return {
-            id,
-            url,
-            key,
-            fileName:
-              (typeof img === "object" ? img?.fileName : "") ||
-              key?.split("/").pop() ||
-              `image_${idx + 1}.webp`,
-            status: (typeof img === "object" ? img?.status : null) || "uploaded",
-            progress:
-              typeof img === "object" && img?.progress !== undefined
-                ? img.progress
-                : 100,
-            isPrimary:
-              typeof img === "object" && img?.isPrimary !== undefined
-                ? img.isPrimary
-                : idx === 0,
-            previewUrl: (typeof img === "object" ? img?.previewUrl : null) || url,
-          };
-        });
-
-        if (
-          prev.length === normalized.length &&
-          prev.every(
-            (img, idx) =>
-              img.url === normalized[idx]?.url &&
-              img.key === normalized[idx]?.key &&
-              img.status === normalized[idx]?.status
-          )
-        ) {
-          return prev;
-        }
-        return normalized;
-      });
+      rawItems = single ? value.slice(0, 1) : value;
     }
-  }, [single, singleUrl, singleKey, value]);
+
+    const normalized: ImageItem[] = rawItems
+      .map((img: any, idx: number) => {
+        const url = typeof img === "string" ? img : img?.url || img?.publicUrl || "";
+        const key = typeof img === "object" ? img?.key || "" : "";
+        const localFile = typeof img === "object" ? img?.localFile : undefined;
+        if (!url && !localFile) return null;
+
+        const id =
+          (typeof img === "object" ? img?.id || img?._id || img?.key : null) ||
+          (localFile ? `local_${localFile.name}_${idx}` : `img_${idx}_${url}`);
+
+        return {
+          id,
+          url,
+          key,
+          localFile,
+          fileName:
+            (typeof img === "object" ? img?.fileName : "") ||
+            localFile?.name ||
+            key?.split("/").pop() ||
+            `image_${idx + 1}.webp`,
+          status: localFile ? "pending" : (typeof img === "object" ? img?.status : null) || "uploaded",
+          progress: localFile ? 0 : 100,
+          isPrimary:
+            typeof img === "object" && img?.isPrimary !== undefined
+              ? Boolean(img.isPrimary)
+              : idx === 0,
+          previewUrl: (typeof img === "object" ? img?.previewUrl : null) || url,
+        } as ImageItem;
+      })
+      .filter((item): item is ImageItem => item !== null);
+
+    setImages((prev) => {
+      if (
+        prev.length === normalized.length &&
+        prev.every(
+          (img, idx) =>
+            img.url === normalized[idx]?.url &&
+            img.key === normalized[idx]?.key &&
+            img.localFile === normalized[idx]?.localFile &&
+            img.status === normalized[idx]?.status &&
+            img.isPrimary === normalized[idx]?.isPrimary
+        )
+      ) {
+        return prev;
+      }
+      return normalized;
+    });
+  }, [single, singleValue, value]);
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -116,143 +259,57 @@ export function ImageUploader({
           URL.revokeObjectURL(img.previewUrl);
         }
       });
-      // Abort any ongoing XHR uploads
-      activeXhrs.current.forEach((xhr) => xhr.abort());
     };
   }, []);
 
+  const trackRemovedKey = useCallback(
+    (key?: string) => {
+      if (!key) return;
+      if (onRemovedKeysChange) {
+        const current = removedKeys || [];
+        if (!current.includes(key)) {
+          onRemovedKeysChange([...current, key]);
+        }
+      }
+    },
+    [onRemovedKeysChange, removedKeys]
+  );
+
   const notifyChange = useCallback(
-    (newImages: any[]) => {
+    (newImages: ImageItem[]) => {
       setImages(newImages);
       if (onChange) {
         onChange(newImages);
       }
       if (single && onSingleChange) {
         const primary = newImages[0];
-        if (primary && primary.status === "uploaded") {
+        if (primary) {
           onSingleChange({
             url: primary.url,
             publicUrl: primary.url,
             key: primary.key || "",
+            localFile: primary.localFile,
+            fileName: primary.fileName,
+            status: primary.status,
           });
         } else {
-          onSingleChange({ url: "", publicUrl: "", key: "" });
+          onSingleChange(null);
         }
       }
     },
     [onChange, onSingleChange, single]
   );
 
-  // Upload to Cloudflare R2 via backend direct streaming endpoint (bypasses browser CORS restrictions)
-  const uploadFileToR2 = useCallback(
-    async (imgId: string, file: File) => {
-      try {
-        const token =
-          getCookie("admin_token") ||
-          (typeof window !== "undefined" ? localStorage.getItem("admin_token") : null);
-
-        const uploadEndpoint = `${BASE_API_URL}/uploads/direct?folder=${encodeURIComponent(
-          folder
-        )}&fileName=${encodeURIComponent(file.name)}`;
-
-        const xhr = new XMLHttpRequest();
-        activeXhrs.current.set(imgId, xhr);
-
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            setImages((prev) =>
-              prev.map((img) =>
-                img.id === imgId ? { ...img, progress } : img
-              )
-            );
-          }
-        };
-
-        xhr.onload = () => {
-          activeXhrs.current.delete(imgId);
-          try {
-            const res = JSON.parse(xhr.responseText || "{}");
-            if (xhr.status >= 200 && xhr.status < 300 && res.status && res.data) {
-              const { key, publicUrl } = res.data;
-              setImages((prev) => {
-                const updated = prev.map((img) =>
-                  img.id === imgId
-                    ? {
-                      ...img,
-                      status: "uploaded" as const,
-                      progress: 100,
-                      key,
-                      url: publicUrl,
-                    }
-                    : img
-                );
-                notifyChange(updated);
-                return updated;
-              });
-              toast.success("Uploaded", `${file.name} uploaded successfully.`);
-            } else {
-              const errMsg = res.message || `Upload failed with status ${xhr.status}.`;
-              setImages((prev) =>
-                prev.map((img) =>
-                  img.id === imgId ? { ...img, status: "error", error: errMsg } : img
-                )
-              );
-              toast.error("Storage Error", errMsg);
-            }
-          } catch {
-            const errMsg = `Upload failed with status ${xhr.status}`;
-            setImages((prev) =>
-              prev.map((img) =>
-                img.id === imgId ? { ...img, status: "error", error: errMsg } : img
-              )
-            );
-            toast.error("Storage Error", errMsg);
-          }
-        };
-
-        xhr.onerror = () => {
-          activeXhrs.current.delete(imgId);
-          const errMsg = "Network error connecting to API server";
-          setImages((prev) =>
-            prev.map((img) =>
-              img.id === imgId ? { ...img, status: "error", error: errMsg } : img
-            )
-          );
-          toast.error("Network Error", errMsg);
-        };
-
-        xhr.open("POST", uploadEndpoint, true);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-        if (token) {
-          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-          xhr.setRequestHeader("x-admin-token", token);
-        }
-        xhr.send(file);
-      } catch (err: any) {
-        setImages((prev) =>
-          prev.map((img) =>
-            img.id === imgId
-              ? { ...img, status: "error", error: err?.message || "Upload exception" }
-              : img
-          )
-        );
-        toast.error("Upload Failed", err?.message || "Could not upload file.");
-      }
-    },
-    [folder, notifyChange]
-  );
-
-  // Validate and enqueue files
+  // Validate and stage files locally (Deferred Upload)
   const processFiles = useCallback(
     (files: FileList | File[]) => {
       if (disabled) return;
       const fileArray = Array.from(files);
 
       const effectiveMax = single ? 1 : maxFiles;
-      const remainingSlots = effectiveMax - images.length;
+      const remainingSlots = single ? 1 : effectiveMax - images.length;
 
-      if (remainingSlots <= 0) {
+      if (remainingSlots <= 0 && !single) {
         toast.warning(
           "Limit Reached",
           `You can only upload a maximum of ${effectiveMax} image${effectiveMax > 1 ? "s" : ""}.`
@@ -261,6 +318,8 @@ export function ImageUploader({
       }
 
       const filesToProcess = fileArray.slice(0, remainingSlots);
+
+      const stagedImages: ImageItem[] = [];
 
       filesToProcess.forEach((file) => {
         // Validate MIME type
@@ -281,34 +340,51 @@ export function ImageUploader({
           return;
         }
 
+        // Create local preview object URL (NO R2 UPLOAD YET)
         const previewUrl = URL.createObjectURL(file);
-        const newImage: any = {
-          id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        const newImage: ImageItem = {
+          id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           url: previewUrl,
           previewUrl,
           fileName: file.name,
-          status: "uploading",
+          status: "pending", // Pending upload until save button is pressed
           progress: 0,
           localFile: file,
-          isPrimary: images.length === 0,
+          key: "",
+          isPrimary: single ? true : images.length === 0,
         };
 
-        setImages((prev) => {
-          const next = single ? [newImage] : [...prev, newImage];
-          // Ensure first image is marked primary
-          if (next.length > 0) {
-            next.forEach((img, i) => {
-              img.isPrimary = i === 0;
-            });
-          }
-          return next;
-        });
-
-        // Start upload
-        uploadFileToR2(newImage.id, file);
+        stagedImages.push(newImage);
       });
+
+      if (stagedImages.length === 0) return;
+
+      if (single) {
+        // In single mode, if an existing saved image is being replaced, track its key for deletion on save
+        const existing = images[0];
+        if (existing?.key) {
+          trackRemovedKey(existing.key);
+        }
+        if (existing?.previewUrl && existing.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(existing.previewUrl);
+        }
+
+        const next = [stagedImages[0]];
+        notifyChange(next);
+        toast.info("Image selected", "Image preview ready. It will upload when you click Save.");
+      } else {
+        const next = [...images, ...stagedImages];
+        next.forEach((img, i) => {
+          img.isPrimary = i === 0;
+        });
+        notifyChange(next);
+        toast.info(
+          `${stagedImages.length} image(s) selected`,
+          "Images staged. They will be uploaded when you click Save."
+        );
+      }
     },
-    [disabled, images.length, maxFiles, single, uploadFileToR2]
+    [disabled, images, maxFiles, notifyChange, single, trackRemovedKey]
   );
 
   // Handle Drag & Drop
@@ -365,43 +441,19 @@ export function ImageUploader({
     toast.info("Primary Image Updated", `"${selected.fileName || "Image"}" set as primary.`);
   };
 
-  // Delete image (with backend R2 deletion if key exists)
-  const handleDelete = async (index: number) => {
+  // Remove image from UI selection (queues R2 key for deletion on Save, NO immediate R2 deletion)
+  const handleDelete = (index: number) => {
     const target = images[index];
     if (!target) return;
 
-    const confirmed = await toast.confirm({
-      title: "Remove Image?",
-      text: "This image will be removed from your catalog.",
-      confirmButtonText: "Remove",
-    });
-
-    if (!confirmed) return;
-
-    // Abort if currently uploading
-    const activeXhr = activeXhrs.current.get(target.id);
-    if (activeXhr) {
-      activeXhr.abort();
-      activeXhrs.current.delete(target.id);
-    }
-
-    // Revoke object URL
+    // Revoke local object URL if present
     if (target.previewUrl && target.previewUrl.startsWith("blob:")) {
       URL.revokeObjectURL(target.previewUrl);
     }
 
-    // Call backend delete if object key is present
+    // If image had a storage key in R2, track it so it will be deleted from R2 when Save is clicked
     if (target.key) {
-      try {
-        const delRes = await api("uploads", { key: target.key, force: true }, { method: "DELETE" });
-        if (!delRes || !delRes.status) {
-          toast.error("Failed to Remove", delRes?.message || "Could not delete image from storage.");
-          return;
-        }
-      } catch (err: any) {
-        toast.error("Error", err?.message || "Could not remove image.");
-        return;
-      }
+      trackRemovedKey(target.key);
     }
 
     const updated = images.filter((_, idx) => idx !== index);
@@ -410,26 +462,10 @@ export function ImageUploader({
     });
 
     notifyChange(updated);
-    toast.success("Image removed");
+    toast.info("Image removed", "Removed from selection. Changes will apply on Save.");
   };
 
-  // Retry failed upload
-  const handleRetry = (target: any) => {
-    if (!target.localFile) {
-      toast.error("Retry Error", "Source file no longer in memory. Please select it again.");
-      return;
-    }
-
-    setImages((prev) =>
-      prev.map((img) =>
-        img.id === target.id ? { ...img, status: "uploading", progress: 0, error: undefined } : img
-      )
-    );
-
-    uploadFileToR2(target.id, target.localFile);
-  };
-
-  // Manual URL apply (for fallback/external URLs)
+  // Manual external URL
   const handleManualUrlApply = () => {
     const trimmed = manualUrl.trim();
     if (!trimmed) return;
@@ -439,19 +475,23 @@ export function ImageUploader({
       return;
     }
 
-    const newImage: any = {
+    if (single && images[0]?.key) {
+      trackRemovedKey(images[0].key);
+    }
+
+    const newImage: ImageItem = {
       id: `url_${Date.now()}`,
       url: trimmed,
       fileName: trimmed.split("/").pop() || "external-image.webp",
       status: "uploaded",
       progress: 100,
-      isPrimary: images.length === 0,
+      isPrimary: single ? true : images.length === 0,
     };
 
     const next = single ? [newImage] : [...images, newImage];
     notifyChange(next);
     setManualUrl("");
-    toast.success("Image added via URL");
+    toast.success("Image URL added");
   };
 
   return (
@@ -463,10 +503,11 @@ export function ImageUploader({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => !disabled && fileInputRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-[4px] p-6 text-center cursor-pointer transition-all ${isDragOver
-            ? "border-[#B4395A] bg-[#B4395A]/5 scale-[0.99]"
-            : "border-slate-300 hover:border-[#B4395A] bg-slate-50/50 hover:bg-slate-50"
-            } ${disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`}
+          className={`relative border-2 border-dashed rounded-[4px] p-6 text-center cursor-pointer transition-all ${
+            isDragOver
+              ? "border-[#B4395A] bg-[#B4395A]/5 scale-[0.99]"
+              : "border-slate-300 hover:border-[#B4395A] bg-slate-50/50 hover:bg-slate-50"
+          } ${disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}`}
         >
           <input
             ref={fileInputRef}
@@ -491,17 +532,17 @@ export function ImageUploader({
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-800">
-                <span className="text-[#B4395A] underline underline-offset-2">Click to upload</span> or drag and drop images
+                <span className="text-[#B4395A] underline underline-offset-2">Click to choose image</span> or drag and drop
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                PNG, JPG, WebP up to 10MB per file (original resolution preserved)
+                PNG, JPG, WebP up to 10MB • Uploads to storage when you click Save / Confirm
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Manual URL Input Accordion/Bar */}
+      {/* Manual URL Input */}
       {(!single || images.length === 0) && (
         <div className="flex items-center gap-2 pt-1">
           <input
@@ -533,30 +574,40 @@ export function ImageUploader({
             </span>
             {!single && images.length > 1 && (
               <span className="text-[11px] text-slate-400">
-                Use arrows to reorder. The first image is the Primary.
+                First image is Primary thumbnail. Use arrows to reorder.
               </span>
             )}
           </div>
 
           <div
-            className={`grid gap-3 ${single
-              ? "grid-cols-1 max-w-[280px]"
-              : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-              }`}
+            className={`grid gap-3 ${
+              single
+                ? folder === "banners"
+                  ? "grid-cols-1 w-full max-w-full"
+                  : "grid-cols-1 max-w-[280px]"
+                : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+            }`}
           >
             {images.map((img, index) => (
               <div
                 key={img.id}
-                className={`relative group rounded-[3px] border bg-white shadow-xs overflow-hidden transition-all flex flex-col ${img.isPrimary
-                  ? "border-[#B4395A] ring-1 ring-[#B4395A]/30"
-                  : "border-slate-200 hover:border-slate-300"
-                  }`}
+                className={`relative group rounded-[3px] border bg-white shadow-xs overflow-hidden transition-all flex flex-col ${
+                  img.isPrimary
+                    ? "border-[#B4395A] ring-1 ring-[#B4395A]/30"
+                    : "border-slate-200 hover:border-slate-300"
+                }`}
               >
-                {/* Thumbnail Display at original full aspect ratio */}
-                <div className="relative aspect-square w-full bg-slate-100 overflow-hidden flex items-center justify-center">
+                {/* Thumbnail Display */}
+                <div
+                  className={`relative w-full bg-slate-100 overflow-hidden flex items-center justify-center ${
+                    folder === "banners" && single
+                      ? "aspect-[16/7] sm:aspect-[16/6] max-h-[220px]"
+                      : "aspect-square"
+                  }`}
+                >
                   <img
                     src={img.url}
-                    alt={img.fileName || "Uploaded Image"}
+                    alt={img.fileName || "Image Preview"}
                     className="h-full w-full object-cover transition-transform group-hover:scale-105 duration-200"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
@@ -565,7 +616,7 @@ export function ImageUploader({
                   />
 
                   {/* Primary Badge */}
-                  {img.isPrimary && (
+                  {img.isPrimary && !single && (
                     <div className="absolute top-1.5 left-1.5 z-10">
                       <Badge className="bg-[#B4395A] text-white text-[10px] px-1.5 py-0.5 uppercase tracking-wider font-bold shadow-xs">
                         Primary
@@ -573,62 +624,68 @@ export function ImageUploader({
                     </div>
                   )}
 
-                  {/* Upload Progress Overlay */}
-                  {img.status === "uploading" && (
-                    <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center p-3 text-white">
-                      <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden mb-1.5">
-                        <div
-                          className="bg-[#B4395A] h-full transition-all duration-150"
-                          style={{ width: `${img.progress}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-mono font-semibold">
-                        {img.progress}%
+                  {/* Pending Save Badge */}
+                  {img.status === "pending" && (
+                    <div className="absolute bottom-1.5 left-1.5 z-10">
+                      <span className="bg-amber-600/95 text-white text-[9px] px-1.5 py-0.5 rounded-[2px] font-semibold uppercase tracking-wider shadow-xs backdrop-blur-xs flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        Pending Save
                       </span>
-                      <span className="text-[9px] text-slate-300 mt-0.5">Uploading to R2...</span>
                     </div>
                   )}
 
-                  {/* Error State Overlay */}
-                  {img.status === "error" && (
-                    <div className="absolute inset-0 bg-red-950/80 p-2 text-white flex flex-col items-center justify-center text-center">
-                      <svg className="w-5 h-5 text-red-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-[10px] text-red-200 line-clamp-2 leading-tight mb-2">
-                        {img.error || "Upload failed"}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleRetry(img)}
-                        className="px-2 py-0.5 bg-white text-slate-900 text-[10px] font-bold rounded-[2px] hover:bg-slate-100 cursor-pointer"
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  )}
+                  {/* Remove Button on Top-Right */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(index);
+                    }}
+                    disabled={disabled}
+                    className="absolute top-1.5 right-1.5 z-10 p-1.5 bg-red-600/90 hover:bg-red-700 text-white rounded-full shadow-sm opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer disabled:opacity-50"
+                    title="Remove image"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2.5"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
                 </div>
 
                 {/* Footer Controls */}
                 <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1 text-[11px]">
                   {single ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(index)}
-                      disabled={disabled}
-                      className="w-full py-1.5 px-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-[3px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                      title="Remove image"
-                    >
-                      <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                      Delete Image
-                    </button>
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={disabled}
+                        className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[3px] font-medium transition-colors cursor-pointer text-xs"
+                      >
+                        Change Image
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(index)}
+                        disabled={disabled}
+                        className="py-1 px-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-[3px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 text-xs ml-auto"
+                        title="Remove image"
+                      >
+                        <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                        Remove
+                      </button>
+                    </div>
                   ) : (
                     <>
                       {/* Reorder Left/Right */}
@@ -656,7 +713,7 @@ export function ImageUploader({
                       )}
 
                       {/* Set as Primary toggle */}
-                      {!img.isPrimary && img.status === "uploaded" && (
+                      {!img.isPrimary && (
                         <button
                           type="button"
                           onClick={() => setPrimary(index)}
@@ -673,7 +730,7 @@ export function ImageUploader({
                         onClick={() => handleDelete(index)}
                         disabled={disabled}
                         className="p-1 text-slate-400 hover:text-red-600 rounded-[2px] transition-colors ml-auto cursor-pointer"
-                        title="Delete image"
+                        title="Remove image"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path

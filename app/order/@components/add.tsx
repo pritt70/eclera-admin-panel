@@ -14,6 +14,7 @@ import { api } from "@/helper";
 import toast from "@/lib/toast";
 import { Plus, Trash2, Check, Tag, X } from "lucide-react";
 import { Select } from "@/components/select";
+import { COUNTRIES, getStatesForCountry } from "@/lib/countries";
 
 interface OrderAddDialogProps {
   open: boolean;
@@ -49,9 +50,10 @@ export function OrderAddDialog({
   const [customerPhone, setCustomerPhone] = useState("");
 
   // Shipping state
+  const [country, setCountry] = useState("India");
   const [street, setStreet] = useState("");
   const [city, setCity] = useState("");
-  const [state, setState] = useState("");
+  const [state, setState] = useState("Gujarat");
   const [postalCode, setPostalCode] = useState("");
 
   // Items state
@@ -115,9 +117,10 @@ export function OrderAddDialog({
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
+    setCountry("India");
     setStreet("");
     setCity("");
-    setState("");
+    setState("Gujarat");
     setPostalCode("");
     setItems([
       {
@@ -372,7 +375,7 @@ export function OrderAddDialog({
           city: city.trim(),
           state: state.trim(),
           postalCode: postalCode.trim(),
-          country: "India",
+          country: country.trim() || "India",
         },
         items: validItems.map((it) => ({
           product: it.productId || undefined,
@@ -479,17 +482,57 @@ export function OrderAddDialog({
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 Shipping Address
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="sm:col-span-2 space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700">Street / House No.</Label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. Flat 402, Royal Palms, Link Road"
-                    value={street}
-                    onChange={(e) => setStreet(e.target.value)}
-                    className="h-9 text-xs rounded-[2px]"
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Country</Label>
+                  <select
+                    value={country}
+                    onChange={(e) => {
+                      const newCountry = e.target.value;
+                      setCountry(newCountry);
+                      const states = getStatesForCountry(newCountry);
+                      if (states.length > 0) {
+                        setState(states[0]);
+                      } else {
+                        setState("");
+                      }
+                    }}
+                    className="w-full h-9 px-2 text-xs border border-slate-300 rounded-[2px] bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#B4395A]"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">State / Province</Label>
+                  {getStatesForCountry(country).length > 0 ? (
+                    <select
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      className="w-full h-9 px-2 text-xs border border-slate-300 rounded-[2px] bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#B4395A]"
+                    >
+                      <option value="">Select State</option>
+                      {getStatesForCountry(country).map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      type="text"
+                      placeholder="e.g. State"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      className="h-9 text-xs rounded-[2px]"
+                    />
+                  )}
+                </div>
+
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-700">City</Label>
                   <Input
@@ -500,6 +543,7 @@ export function OrderAddDialog({
                     className="h-9 text-xs rounded-[2px]"
                   />
                 </div>
+
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-700">Postal Code</Label>
                   <Input
@@ -507,6 +551,17 @@ export function OrderAddDialog({
                     placeholder="e.g. 400053"
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
+                    className="h-9 text-xs rounded-[2px]"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-4 space-y-1">
+                  <Label className="text-xs font-semibold text-slate-700">Street / House No.</Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Flat 402, Royal Palms, Link Road"
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
                     className="h-9 text-xs rounded-[2px]"
                   />
                 </div>

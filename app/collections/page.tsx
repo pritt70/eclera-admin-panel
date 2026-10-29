@@ -312,11 +312,18 @@ export default function CollectionsPage() {
                           </div>
                         </TableCell>
 
-                        {/* Category Badge */}
+                        {/* Category & Products Badge */}
                         <TableCell>
-                          <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-[3px]">
-                            {categoryName}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-[3px]">
+                              {categoryName}
+                            </span>
+                            {Array.isArray(item.products) && item.products.length > 0 && (
+                              <span className="inline-flex items-center text-[10px] font-semibold text-[#B4395A] bg-pink-50 border border-pink-200 px-1.5 py-0.5 rounded-[3px]">
+                                {item.products.length} {item.products.length === 1 ? "product" : "products"}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
 
                         {/* Status Switch */}
