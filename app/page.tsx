@@ -6,12 +6,24 @@ import Link from "next/link";
 import { getCookie, api } from "@/helper";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
+import { MaintenanceDialog } from "@/components/maintenance-dialog";
+import { Wrench, ShieldAlert, CheckCircle2, Settings } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [categoryCount, setCategoryCount] = useState<number>(0);
+  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+  const [maintenanceConfig, setMaintenanceConfig] = useState<{
+    isActive: boolean;
+    title: string;
+    description: string;
+  }>({
+    isActive: false,
+    title: "",
+    description: "",
+  });
 
   useEffect(() => {
     const token = getCookie("admin_token") || (typeof window !== "undefined" && localStorage.getItem("admin_token"));
@@ -22,12 +34,24 @@ export default function AdminDashboardPage() {
       return;
     }
 
-    // Fetch live categories count from API
+    // Fetch live categories count and maintenance status from database
     async function fetchDashboardData() {
       try {
-        const res = await api("category/list", { limit: 1 });
-        if (res && res.status && res.data?.pagination?.total !== undefined) {
-          setCategoryCount(res.data.pagination.total);
+        const [catRes, maintRes] = await Promise.all([
+          api("category/list", { limit: 1 }),
+          api("maintenance"),
+        ]);
+
+        if (catRes && catRes.status && catRes.data?.pagination?.total !== undefined) {
+          setCategoryCount(catRes.data.pagination.total);
+        }
+
+        if (maintRes && maintRes.status && maintRes.data) {
+          setMaintenanceConfig({
+            isActive: Boolean(maintRes.data.isActive),
+            title: maintRes.data.title || "",
+            description: maintRes.data.description || "",
+          });
         }
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
@@ -89,6 +113,72 @@ export default function AdminDashboardPage() {
             <div className="text-[11px] text-slate-400 font-mono sm:text-right shrink-0">
               {currentDate}
             </div>
+          </div>
+
+          {/* Under Maintenance Website Control Card (Single Click Manage Dialog) */}
+          <div
+            className={`rounded-[2px] border p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+              maintenanceConfig.isActive
+                ? "bg-amber-50/80 border-amber-300 border-l-4 border-l-amber-500"
+                : "bg-white border-slate-200 border-l-4 border-l-emerald-500"
+            }`}
+          >
+            <div className="flex items-start sm:items-center gap-3">
+              <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                  maintenanceConfig.isActive
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {maintenanceConfig.isActive ? (
+                  <ShieldAlert className="w-5 h-5 text-amber-600 animate-pulse" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                )}
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-bold text-slate-900 tracking-tight">
+                    Website Status:
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-none ${
+                      maintenanceConfig.isActive
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        maintenanceConfig.isActive ? "bg-amber-600 animate-ping" : "bg-emerald-600"
+                      }`}
+                    />
+                    {maintenanceConfig.isActive ? "Under Maintenance (Active)" : "Live (Normal Operation)"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  {maintenanceConfig.isActive
+                    ? maintenanceConfig.title
+                      ? `Visitors see white maintenance screen: "${maintenanceConfig.title}"`
+                      : "Website is currently in maintenance mode."
+                    : "Website is fully visible and accepting customer orders normally."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMaintenanceModalOpen(true)}
+              className={`shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-none cursor-pointer transition-colors shadow-xs ${
+                maintenanceConfig.isActive
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : "bg-slate-900 hover:bg-[#B4395A] text-white"
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Configure Maintenance</span>
+            </button>
           </div>
 
           {/* Module Cards Grid with live API Categories count */}
@@ -212,6 +302,13 @@ export default function AdminDashboardPage() {
           </div>
         </main>
       </div>
+
+      {/* Single Unified Maintenance Modal Dialog for both Add and Edit */}
+      <MaintenanceDialog
+        open={maintenanceModalOpen}
+        onOpenChange={setMaintenanceModalOpen}
+        onUpdated={(updated) => setMaintenanceConfig(updated)}
+      />
     </div>
   );
 }

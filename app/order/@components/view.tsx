@@ -93,18 +93,16 @@ export function OrderViewDialog({
   const getOrderStatusBadge = (st: string) => {
     switch (st) {
       case "delivered":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 uppercase text-[10px] tracking-wider">Delivered</Badge>;
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] uppercase tracking-wider font-semibold">Delivered</Badge>;
       case "shipped":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 uppercase text-[10px] tracking-wider">Shipped</Badge>;
-      case "processing":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 uppercase text-[10px] tracking-wider">Processing</Badge>;
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] uppercase tracking-wider font-semibold">Shipped</Badge>;
       case "confirmed":
-        return <Badge className="bg-sky-50 text-sky-700 border-sky-200 uppercase text-[10px] tracking-wider">Confirmed</Badge>;
-      case "cancelled":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200 uppercase text-[10px] tracking-wider">Cancelled</Badge>;
+        return <Badge className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] uppercase tracking-wider font-semibold">Confirmed</Badge>;
+      case "returned":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] uppercase tracking-wider font-semibold">Returned</Badge>;
       case "pending":
       default:
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 uppercase text-[10px] tracking-wider">Pending</Badge>;
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] uppercase tracking-wider font-semibold">Pending</Badge>;
     }
   };
 
@@ -144,6 +142,11 @@ export function OrderViewDialog({
               </DialogTitle>
               {getOrderStatusBadge(currentStatus)}
               {getPaymentStatusBadge(currentPaymentStatus)}
+              {order.isArchived && (
+                <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-[10px] uppercase tracking-wider font-semibold">
+                  Archived
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-slate-500 mt-1">Placed on {formattedDate}</p>
           </div>
@@ -162,10 +165,9 @@ export function OrderViewDialog({
               >
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
-                <option value="processing">Processing</option>
                 <option value="shipped">Shipped</option>
                 <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="returned">Returned</option>
               </select>
             </div>
 
@@ -184,6 +186,25 @@ export function OrderViewDialog({
               </select>
             </div>
           </div>
+
+          {/* Return Details Card if Returned */}
+          {(currentStatus === "returned" || order.orderStatus === "returned" || order.returnReason) && (
+            <div className="p-3.5 bg-rose-50 rounded-[2px] border border-rose-200 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-800 uppercase tracking-wider">
+                  Customer Support Return Approved
+                </span>
+                {order.returnApprovedAt && (
+                  <span className="text-[10px] text-rose-600">
+                    Approved on: {new Date(order.returnApprovedAt).toLocaleDateString("en-IN")}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-rose-700">
+                {order.returnReason || "Approved via call support verification from Admin Panel."}
+              </p>
+            </div>
+          )}
 
           {/* Customer & Shipping Details Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

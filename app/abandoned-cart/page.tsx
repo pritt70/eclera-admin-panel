@@ -12,7 +12,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { DataTablePagination } from "@/components/ui/pagination";
 import { AbandonedCartViewDialog } from "@/app/abandoned-cart/@components/view";
@@ -25,18 +24,35 @@ import {
   Trash2,
 } from "lucide-react";
 
+type CartTab = "all" | "abandoned" | "email_sent" | "recovered" | "expired";
+
+interface StatusCounts {
+  all?: number;
+  abandoned?: number;
+  email_sent?: number;
+  recovered?: number;
+  expired?: number;
+}
+
+const STATUS_TABS: { key: CartTab; label: string; badgeColor: string }[] = [
+  { key: "all", label: "All Carts", badgeColor: "bg-slate-100 text-slate-700" },
+  { key: "abandoned", label: "Abandoned", badgeColor: "bg-amber-100 text-amber-800" },
+  { key: "email_sent", label: "Email Sent", badgeColor: "bg-blue-100 text-blue-800" },
+  { key: "recovered", label: "Recovered", badgeColor: "bg-emerald-100 text-emerald-800" },
+  { key: "expired", label: "Expired", badgeColor: "bg-slate-200 text-slate-700" },
+];
+
 export default function AbandonedCartPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Data states
   const [carts, setCarts] = useState<any[]>([]);
   const [totalCarts, setTotalCarts] = useState<number>(0);
+  const [statusCounts, setStatusCounts] = useState<StatusCounts>({});
 
   // Filter & Pagination states
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "abandoned" | "email_sent" | "recovered" | "expired"
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<CartTab>("all");
   const [page, setPage] = useState(1);
   const limit = 10;
   const [totalPages, setTotalPages] = useState(1);
@@ -45,7 +61,7 @@ export default function AbandonedCartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Dialog states
+  // Dialog states (Strictly View only - No Add, No Edit)
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedCart, setSelectedCart] = useState<any>(null);
 
@@ -63,6 +79,7 @@ export default function AbandonedCartPage() {
 
       if (res && res.status && res.data) {
         setCarts(res.data.carts || []);
+        setStatusCounts(res.data.statusCounts || {});
         setTotalCarts(res.data.pagination?.total || 0);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
@@ -85,7 +102,7 @@ export default function AbandonedCartPage() {
 
     const confirmed = await toast.confirm({
       title: "Send Recovery Email?",
-      text: `Dispatch cart reminder email to customer "${item.customer?.email}"?`,
+      text: `Dispatch cart recovery reminder to "${item.customer?.email || 'customer'}"?`,
       confirmButtonText: "Yes, Send",
       cancelButtonText: "Cancel",
     });
@@ -111,7 +128,7 @@ export default function AbandonedCartPage() {
 
     const confirmed = await toast.confirm({
       title: "Delete Abandoned Cart?",
-      text: `Are you sure you want to delete cart record "${item.cartNumber}"?`,
+      text: `Are you sure you want to delete cart record "${item.cartNumber}"? This cannot be undone.`,
       confirmButtonText: "Yes, Delete",
       cancelButtonText: "Cancel",
     });
@@ -140,26 +157,26 @@ export default function AbandonedCartPage() {
     switch (st) {
       case "recovered":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wide">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             Recovered
           </span>
         );
       case "email_sent":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wide">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
             Email Sent
           </span>
         );
       case "expired":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wide">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
             Expired
           </span>
         );
       case "abandoned":
       default:
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-[2px] text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             Abandoned
           </span>
         );
@@ -195,7 +212,7 @@ export default function AbandonedCartPage() {
 
         <main className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto">
           {/* Filter Bar */}
-          <div className="rounded-[2px] border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="rounded-[2px] border border-slate-200 bg-white p-3.5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="flex-1 max-w-sm">
               <SearchInput
                 value={search}
@@ -207,33 +224,38 @@ export default function AbandonedCartPage() {
               />
             </div>
 
-            {/* Status Tabs */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-[3px] self-start sm:self-auto">
-              {(
-                [
-                  "all",
-                  "abandoned",
-                  "email_sent",
-                  "recovered",
-                  "expired",
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => {
-                    setStatusFilter(tab);
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1 rounded-[2px] text-xs font-medium capitalize transition-colors cursor-pointer ${
-                    statusFilter === tab
-                      ? "bg-white text-slate-900 shadow-xs font-semibold"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
-                >
-                  {tab.replace("_", " ")}
-                </button>
-              ))}
+            {/* Status Tabs with Live Count Badges */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-[3px] self-start lg:self-auto overflow-x-auto max-w-full">
+              {STATUS_TABS.map((tab) => {
+                const count = statusCounts[tab.key] ?? 0;
+                const isActive = statusFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter(tab.key);
+                      setPage(1);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[2px] text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? "bg-white text-slate-900 shadow-xs font-semibold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isActive
+                          ? "bg-slate-900 text-white"
+                          : tab.badgeColor
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -382,7 +404,7 @@ export default function AbandonedCartPage() {
                             )}
                           </TableCell>
 
-                          {/* Actions */}
+                          {/* Actions: View and Delete only (plus send email) */}
                           <TableCell className="py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               {item.recoveryStatus !== "recovered" && (

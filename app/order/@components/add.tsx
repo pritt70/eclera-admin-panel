@@ -39,9 +39,11 @@ export function OrderAddDialog({
 }: OrderAddDialogProps) {
   const [loading, setLoading] = useState(false);
 
-  // Products and coupons available in the store
+  // Products, coupons and customers available in the store
   const [products, setProducts] = useState<any[]>([]);
   const [coupons, setCoupons] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [fetchingCatalog, setFetchingCatalog] = useState(false);
 
   // Customer state
@@ -79,18 +81,20 @@ export function OrderAddDialog({
   // Payment method: "prepaid" | "advance"
   const [paymentMethod, setPaymentMethod] = useState<"prepaid" | "advance">("prepaid");
   const [paymentStatus, setPaymentStatus] = useState("paid");
-  const [orderStatus, setOrderStatus] = useState("confirmed");
+  const [orderStatus, setOrderStatus] = useState("pending");
   const [carrier, setCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [notes, setNotes] = useState("");
+  const [returnReason, setReturnReason] = useState("");
 
-  // Fetch catalog products and active discounts whenever modal opens
+  // Fetch catalog products, active discounts and customers whenever modal opens
   const fetchCatalogData = useCallback(async () => {
     setFetchingCatalog(true);
     try {
-      const [prodRes, discRes] = await Promise.all([
+      const [prodRes, discRes, custRes] = await Promise.all([
         api("product/list", { limit: 100 }),
         api("discount/list", { limit: 50, status: "active" }),
+        api("customer/list", { limit: 100 }),
       ]);
 
       if (prodRes && prodRes.status && prodRes.data?.products) {
@@ -98,6 +102,9 @@ export function OrderAddDialog({
       }
       if (discRes && discRes.status && discRes.data?.discounts) {
         setCoupons(discRes.data.discounts);
+      }
+      if (custRes && custRes.status && custRes.data?.customers) {
+        setCustomers(custRes.data.customers);
       }
     } catch (err) {
       console.error("Failed to load catalog data:", err);
@@ -112,8 +119,34 @@ export function OrderAddDialog({
     }
   }, [open, fetchCatalogData]);
 
+  // Handle existing customer selection
+  const handleCustomerSelect = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    if (!customerId) return;
+
+    const cust = customers.find((c) => c._id === customerId);
+    if (cust) {
+      const fullName = `${cust.firstName || ""} ${cust.lastName || ""}`.trim();
+      setCustomerName(fullName);
+      setCustomerEmail(cust.email || "");
+      setCustomerPhone(cust.phone || "");
+
+      if (cust.addresses && cust.addresses.length > 0) {
+        const addr = cust.addresses.find((a: any) => a.isDefault) || cust.addresses[0];
+        if (addr) {
+          if (addr.street) setStreet(addr.street);
+          if (addr.city) setCity(addr.city);
+          if (addr.state) setState(addr.state);
+          if (addr.postalCode) setPostalCode(addr.postalCode);
+          if (addr.country) setCountry(addr.country);
+        }
+      }
+    }
+  };
+
   // Reset form
   const resetForm = () => {
+    setSelectedCustomerId("");
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
@@ -139,7 +172,8 @@ export function OrderAddDialog({
     setShippingFee(0);
     setPaymentMethod("prepaid");
     setPaymentStatus("paid");
-    setOrderStatus("confirmed");
+    setOrderStatus("pending");
+    setReturnReason("");
     setCarrier("");
     setTrackingNumber("");
     setNotes("");
@@ -364,6 +398,7 @@ export function OrderAddDialog({
     try {
       const payload = {
         customer: {
+          id: selectedCustomerId || undefined,
           name: customerName.trim(),
           email: customerEmail.trim().toLowerCase(),
           phone: customerPhone.trim(),
@@ -394,6 +429,7 @@ export function OrderAddDialog({
         paymentMethod,
         paymentStatus,
         orderStatus,
+        returnReason: orderStatus === "returned" ? returnReason.trim() : undefined,
         tracking: {
           carrier: carrier.trim(),
           trackingNumber: trackingNumber.trim(),
@@ -438,9 +474,48 @@ export function OrderAddDialog({
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Customer Details */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Customer Information
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Customer Information
+                </h4>
+                {selectedCustomerId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomerId("");
+                      setCustomerName("");
+                      setCustomerEmail("");
+                      setCustomerPhone("");
+                    }}
+                    className="text-[11px] text-[#B4395A] hover:underline cursor-pointer"
+                  >
+                    Clear selection (Switch to manual)
+                  </button>
+                )}
+              </div>
+
+              {/* Existing Customer Dropdown */}
+              <div className="space-y-1 bg-slate-50 p-2.5 rounded-[2px] border border-slate-200">
+                <Label className="text-xs font-semibold text-slate-700">
+                  Select Existing Customer (Auto-fills details & address)
+                </Label>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => handleCustomerSelect(e.target.value)}
+                  className="w-full h-9 bg-white border border-slate-300 rounded-[2px] px-3 text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-[#B4395A] cursor-pointer"
+                >
+                  <option value="">+ New Customer (Manual Entry)</option>
+                  {customers.map((c) => {
+                    const fullName = `${c.firstName || ""} ${c.lastName || ""}`.trim() || "Unnamed";
+                    return (
+                      <option key={c._id} value={c._id}>
+                        {fullName} — {c.email || c.phone || "No contact"}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-700">Customer Name *</Label>
@@ -805,14 +880,29 @@ export function OrderAddDialog({
                   onChange={(e) => setOrderStatus(e.target.value)}
                   className="w-full h-9 bg-white border border-slate-300 rounded-[2px] px-3 text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-[#B4395A] cursor-pointer"
                 >
+                  <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
-                  <option value="processing">Processing</option>
                   <option value="shipped">Shipped</option>
                   <option value="delivered">Delivered</option>
-                  <option value="pending">Pending</option>
+                  <option value="returned">Returned</option>
                 </select>
               </div>
             </div>
+
+            {orderStatus === "returned" && (
+              <div className="space-y-1 p-3 bg-rose-50 border border-rose-200 rounded-[2px]">
+                <Label className="text-xs font-semibold text-rose-800">
+                  Return Approval Reason / Call Notes
+                </Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Customer call verified return approval - defective item"
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="h-9 text-xs bg-white rounded-[2px]"
+                />
+              </div>
+            )}
 
             {/* ================= PAYMENT METHOD (Prepaid and Advance Payment) ================= */}
             <div className="space-y-2 border border-slate-200 rounded-[2px] p-4 bg-white">

@@ -30,6 +30,7 @@ export function OrderEditDialog({
   const [loading, setLoading] = useState(false);
 
   const [orderStatus, setOrderStatus] = useState("pending");
+  const [returnReason, setReturnReason] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("pending");
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [carrier, setCarrier] = useState("");
@@ -40,6 +41,7 @@ export function OrderEditDialog({
   useEffect(() => {
     if (order) {
       setOrderStatus(order.orderStatus || "pending");
+      setReturnReason(order.returnReason || "");
       setPaymentStatus(order.paymentStatus || "pending");
       setPaymentMethod(order.paymentMethod || "cod");
       setCarrier(order.tracking?.carrier || "");
@@ -59,6 +61,7 @@ export function OrderEditDialog({
       const payload = {
         id: order._id,
         orderStatus,
+        returnReason: orderStatus === "returned" ? returnReason.trim() : undefined,
         paymentStatus,
         paymentMethod,
         tracking: {
@@ -111,10 +114,9 @@ export function OrderEditDialog({
                 >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
-                  <option value="processing">Processing</option>
                   <option value="shipped">Shipped</option>
                   <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="returned">Returned</option>
                 </select>
               </div>
 
@@ -132,6 +134,21 @@ export function OrderEditDialog({
                 </select>
               </div>
             </div>
+
+            {orderStatus === "returned" && (
+              <div className="space-y-1 p-3 bg-rose-50 border border-rose-200 rounded-[2px]">
+                <Label className="text-xs font-semibold text-rose-800">
+                  Return Approval Reason / Call Notes
+                </Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Call verified: approved return for exchange/refund"
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="h-9 text-xs bg-white rounded-[2px]"
+                />
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-700">Payment Method</Label>
